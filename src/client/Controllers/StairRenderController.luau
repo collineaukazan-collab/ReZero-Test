@@ -11,147 +11,150 @@ local renderFolder = nil
 local renderedSegments = {}
 local graphicsController = nil
 
-local FALLBACK_STEPS_PER_SEGMENT = 90
-local FALLBACK_RADIUS = 22
+local FALLBACK_STEPS_PER_SEGMENT = 180
+local FALLBACK_RADIUS = 24
 local FALLBACK_STEP_HEIGHT = GameConfig.StairSegmentHeight / FALLBACK_STEPS_PER_SEGMENT
 
 local function getCharacterRoot()
-local character = localPlayer.Character
-if not character then
-return nil
-end
+	local character = localPlayer.Character
+	if not character then
+		return nil
+	end
 
-return character:FindFirstChild("HumanoidRootPart")
+	return character:FindFirstChild("HumanoidRootPart")
 end
 
 local function getTemplate()
-local assets = ReplicatedStorage:FindFirstChild("Assets")
-if not assets then
-return nil
-end
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	if not assets then
+		return nil
+	end
 
-return assets:FindFirstChild("StairSegment")
+	return assets:FindFirstChild("StairSegment")
 end
 
 local function anchorParts(instance)
-for _, descendant in ipairs(instance:GetDescendants()) do
-if descendant:IsA("BasePart") then
-descendant.Anchored = true
-descendant.CanCollide = true
-end
-end
+	for _, descendant in ipairs(instance:GetDescendants()) do
+		if descendant:IsA("BasePart") then
+			descendant.Anchored = true
+			descendant.CanCollide = true
+		end
+	end
 end
 
 local function createFallbackSegment(index)
-local model = Instance.new("Model")
-model.Name = "FallbackStairSegment_" .. tostring(index)
+	local model = Instance.new("Model")
+	model.Name = "FallbackStairSegment_" .. tostring(index)
 
-local baseY = index * GameConfig.StairSegmentHeight
+	local baseY = index * GameConfig.StairSegmentHeight
 
-for stepIndex = 1, FALLBACK_STEPS_PER_SEGMENT do
-local progress = (stepIndex - 1) / FALLBACK_STEPS_PER_SEGMENT
-local angle = progress * math.pi * 2
+	for stepIndex = 1, FALLBACK_STEPS_PER_SEGMENT do
+		local progress = (stepIndex - 1) / FALLBACK_STEPS_PER_SEGMENT
+		local angle = progress * math.pi * 2
 
-local x = math.cos(angle) * FALLBACK_RADIUS
-local z = math.sin(angle) * FALLBACK_RADIUS
-local y = baseY + (stepIndex - 1) * FALLBACK_STEP_HEIGHT
+		local x = math.cos(angle) * FALLBACK_RADIUS
+		local z = math.sin(angle) * FALLBACK_RADIUS
+		local y = baseY + (stepIndex - 1) * FALLBACK_STEP_HEIGHT
 
-local step = Instance.new("Part")
-step.Name = "Step"
-step.Anchored = true
-step.CanCollide = true
-step.Size = Vector3.new(9, 1, 6)
-step.Material = Enum.Material.Slate
-step.Color = Color3.fromRGB(55, 55, 65)
-step.CFrame = CFrame.new(x, y, z) * CFrame.Angles(0, -angle, 0)
-step.Parent = model
-end
+		local step = Instance.new("Part")
+		step.Name = "Step"
+		step.Anchored = true
+		step.CanCollide = true
+		step.Size = Vector3.new(11, 0.7, 8)
+		step.Material = Enum.Material.Slate
+		step.Color = Color3.fromRGB(70, 70, 82)
+		step.CFrame = CFrame.new(x, y, z) * CFrame.Angles(0, -angle, 0)
+		step.Parent = model
+	end
 
-model.Parent = renderFolder
-return model
+	model.Parent = renderFolder
+	return model
 end
 
 local function createSegment(index)
-if renderedSegments[index] then
-return
-end
+	if renderedSegments[index] then
+		return
+	end
 
-local template = getTemplate()
+	local template = getTemplate()
 
-if template then
-local clone = template:Clone()
-clone.Name = "StairSegment_" .. tostring(index)
-anchorParts(clone)
-clone.Parent = renderFolder
+	if template then
+		local clone = template:Clone()
+		clone.Name = "StairSegment_" .. tostring(index)
+		anchorParts(clone)
+		clone.Parent = renderFolder
 
-local targetCFrame = CFrame.new(0, index * GameConfig.StairSegmentHeight, 0)
+		local targetCFrame = CFrame.new(0, index * GameConfig.StairSegmentHeight, 0)
 
-if clone:IsA("Model") then
-clone:PivotTo(targetCFrame)
-elseif clone:IsA("BasePart") then
-clone.CFrame = targetCFrame
-end
+		if clone:IsA("Model") then
+			clone:PivotTo(targetCFrame)
+		elseif clone:IsA("BasePart") then
+			clone.CFrame = targetCFrame
+		end
 
-renderedSegments[index] = clone
-else
-renderedSegments[index] = createFallbackSegment(index)
-end
+		renderedSegments[index] = clone
+	else
+		renderedSegments[index] = createFallbackSegment(index)
+	end
 end
 
 local function removeSegment(index)
-local segment = renderedSegments[index]
-if segment then
-segment:Destroy()
-renderedSegments[index] = nil
-end
+	local segment = renderedSegments[index]
+	if segment then
+		segment:Destroy()
+		renderedSegments[index] = nil
+	end
 end
 
 local function updateRenderedSegments()
-local root = getCharacterRoot()
-if not root then
-return
-end
+	local root = getCharacterRoot()
+	if not root then
+		return
+	end
 
-local currentStuds = math.max(0, root.Position.Y - GameConfig.SpawnPosition.Y)
-local currentSegmentIndex = math.max(0, math.floor(currentStuds / GameConfig.StairSegmentHeight))
+	local currentStuds = math.max(0, root.Position.Y - GameConfig.SpawnPosition.Y)
+	local currentSegmentIndex = math.max(0, math.floor(currentStuds / GameConfig.StairSegmentHeight))
 
-local renderDistance = graphicsController:GetRenderDistance()
-local segmentRange = math.max(2, math.ceil(renderDistance / GameConfig.StairSegmentHeight))
+	local aboveDistance = graphicsController:GetRenderDistanceAbove()
+	local belowDistance = graphicsController:GetRenderDistanceBelow()
 
-local minIndex = math.max(0, currentSegmentIndex - 2)
-local maxIndex = currentSegmentIndex + segmentRange
+	local aboveRange = math.max(2, math.ceil(aboveDistance / GameConfig.StairSegmentHeight))
+	local belowRange = math.max(1, math.ceil(belowDistance / GameConfig.StairSegmentHeight))
 
-for index = minIndex, maxIndex do
-createSegment(index)
-end
+	local minIndex = math.max(0, currentSegmentIndex - belowRange)
+	local maxIndex = currentSegmentIndex + aboveRange
 
-for index in pairs(renderedSegments) do
-if index < minIndex or index > maxIndex then
-removeSegment(index)
-end
-end
+	for index = minIndex, maxIndex do
+		createSegment(index)
+	end
+
+	for index in pairs(renderedSegments) do
+		if index < minIndex or index > maxIndex then
+			removeSegment(index)
+		end
+	end
 end
 
 function StairRenderController:Start(controller)
-graphicsController = controller
+	graphicsController = controller
 
-renderFolder = workspace:FindFirstChild("ClientRenderedStairs")
-if not renderFolder then
-renderFolder = Instance.new("Folder")
-renderFolder.Name = "ClientRenderedStairs"
-renderFolder.Parent = workspace
-end
+	renderFolder = workspace:FindFirstChild("ClientRenderedStairs")
+	if not renderFolder then
+		renderFolder = Instance.new("Folder")
+		renderFolder.Name = "ClientRenderedStairs"
+		renderFolder.Parent = workspace
+	end
 
-graphicsController.Changed:Connect(function()
-updateRenderedSegments()
-end)
+	graphicsController.Changed:Connect(function()
+		updateRenderedSegments()
+	end)
 
-task.spawn(function()
-while true do
-updateRenderedSegments()
-task.wait(GameConfig.ClientRenderUpdateInterval)
-end
-end)
+	task.spawn(function()
+		while true do
+			updateRenderedSegments()
+			task.wait(GameConfig.ClientRenderUpdateInterval)
+		end
+	end)
 end
 
 return StairRenderController

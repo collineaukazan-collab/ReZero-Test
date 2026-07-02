@@ -46,7 +46,7 @@ GameConfig.DataStoreName = "ReZeroLoopData_v1"
 GameConfig.DeathFadeDuration = 0.35
 GameConfig.DeathBlackScreenTime = 0.75
 
-GameConfig.RespawnSoundId = "rbxassetid://0"
+GameConfig.RespawnSoundId = ""
 
 GameConfig.DefaultMusicVolume = 0.6
 GameConfig.DefaultSfxVolume = 0.8
