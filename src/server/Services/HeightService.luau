@@ -5,61 +5,67 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local HeightService = {}
 
+local ragdollService = nil
+
 local function getHorizontalDistanceFromTower(root)
-	local position = root.Position
-	return Vector2.new(position.X, position.Z).Magnitude
+local position = root.Position
+return Vector2.new(position.X, position.Z).Magnitude
 end
 
-local function shouldKillPlayer(player, character, currentStuds)
-	local root = character:FindFirstChild("HumanoidRootPart")
-	if not root then
-		return false
-	end
-
-	if root.Position.Y <= GameConfig.FallDeathY then
-		return true
-	end
-
-	if GameConfig.KillWhenOutsideTowerRadius then
-		if currentStuds >= GameConfig.MinimumStudsBeforeFallKill then
-			local distance = getHorizontalDistanceFromTower(root)
-			if distance > GameConfig.TowerSafeRadius then
-				return true
-			end
-		end
-	end
-
-	return false
+local function isPlayerFallingOutsideTower(character, currentStuds)
+local root = character:FindFirstChild("HumanoidRootPart")
+if not root then
+return false
 end
 
-function HeightService:Start(playerDataService)
-	task.spawn(function()
-		while true do
-			for _, player in ipairs(Players:GetPlayers()) do
-				local character = player.Character
-				local root = character and character:FindFirstChild("HumanoidRootPart")
-				local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+if currentStuds < GameConfig.MinimumStudsBeforeFallKill then
+return false
+end
 
-				if root and humanoid and humanoid.Health > 0 then
-					local currentStuds = math.max(0, math.floor(root.Position.Y - GameConfig.SpawnPosition.Y))
-					local currentFloor = math.max(0, math.floor(currentStuds / GameConfig.StairSegmentHeight))
-					local runBestStuds = math.max(player:GetAttribute("RunBestStuds") or 0, currentStuds)
+local distance = getHorizontalDistanceFromTower(root)
+return distance > GameConfig.TowerSafeRadius
+end
 
-					player:SetAttribute("CurrentStuds", currentStuds)
-					player:SetAttribute("CurrentFloor", currentFloor)
-					player:SetAttribute("RunBestStuds", runBestStuds)
+local function hasTouchedBottom(root)
+return root.Position.Y <= GameConfig.FallDeathY
+end
 
-					playerDataService:SetBestStuds(player, runBestStuds)
+function HeightService:Start(playerDataService, injectedRagdollService)
+ragdollService = injectedRagdollService
 
-					if shouldKillPlayer(player, character, currentStuds) then
-						humanoid.Health = 0
-					end
-				end
-			end
+task.spawn(function()
+while true do
+for _, player in ipairs(Players:GetPlayers()) do
+local character = player.Character
+local root = character and character:FindFirstChild("HumanoidRootPart")
+local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
-			task.wait(GameConfig.HeightUpdateInterval)
-		end
-	end)
+if root and humanoid and humanoid.Health > 0 then
+local currentStuds = math.max(0, math.floor(root.Position.Y - GameConfig.SpawnPosition.Y))
+local currentFloor = math.max(0, math.floor(currentStuds / GameConfig.StairSegmentHeight))
+local runBestStuds = math.max(player:GetAttribute("RunBestStuds") or 0, currentStuds)
+
+player:SetAttribute("CurrentStuds", currentStuds)
+player:SetAttribute("CurrentFloor", currentFloor)
+player:SetAttribute("RunBestStuds", runBestStuds)
+
+playerDataService:SetBestStuds(player, runBestStuds)
+
+if GameConfig.KillWhenOutsideTowerRadius and isPlayerFallingOutsideTower(character, currentStuds) then
+if ragdollService then
+ragdollService:RagdollPlayer(player)
+end
+end
+
+if hasTouchedBottom(root) then
+humanoid.Health = 0
+end
+end
+end
+
+task.wait(GameConfig.HeightUpdateInterval)
+end
+end)
 end
 
 return HeightService
