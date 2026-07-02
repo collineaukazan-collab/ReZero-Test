@@ -22,7 +22,7 @@ atmosphere = Instance.new("Atmosphere")
 atmosphere.Parent = Lighting
 end
 
-atmosphere.Density = 0.45
+atmosphere.Density = 0.15
 atmosphere.Offset = 0.15
 atmosphere.Color = Color3.fromRGB(80, 80, 95)
 atmosphere.Decay = Color3.fromRGB(12, 12, 18)
@@ -36,7 +36,7 @@ colorCorrection.Name = "DarkTowerColorCorrection"
 colorCorrection.Parent = Lighting
 end
 
-colorCorrection.Brightness = -0.12
+colorCorrection.Brightness = 0.25
 colorCorrection.Contrast = 0.25
 colorCorrection.Saturation = -0.15
 colorCorrection.TintColor = Color3.fromRGB(205, 210, 230)

@@ -9,21 +9,49 @@ GraphicsController._changedEvent = Instance.new("BindableEvent")
 GraphicsController.Changed = GraphicsController._changedEvent.Event
 
 local function getRemotes()
-	local remotes = ReplicatedStorage:WaitForChild("Remotes")
-	return remotes
+	return ReplicatedStorage:WaitForChild("Remotes")
 end
 
 function GraphicsController:GetQuality()
 	return self.CurrentQuality
 end
 
-function GraphicsController:GetRenderDistance()
+function GraphicsController:GetQualitySetting()
 	local setting = GameConfig.QualitySettings[self.CurrentQuality]
+
 	if not setting then
-		return GameConfig.QualitySettings[GameConfig.DefaultQuality].RenderDistance
+		setting = GameConfig.QualitySettings[GameConfig.DefaultQuality]
 	end
 
-	return setting.RenderDistance
+	return setting
+end
+
+function GraphicsController:GetRenderDistanceAbove()
+	local setting = self:GetQualitySetting()
+
+	if setting.RenderDistanceAbove then
+		return setting.RenderDistanceAbove
+	end
+
+	if setting.RenderDistance then
+		return setting.RenderDistance
+	end
+
+	return 900
+end
+
+function GraphicsController:GetRenderDistanceBelow()
+	local setting = self:GetQualitySetting()
+
+	if setting.RenderDistanceBelow then
+		return setting.RenderDistanceBelow
+	end
+
+	if setting.RenderDistance then
+		return math.floor(setting.RenderDistance / 2)
+	end
+
+	return 360
 end
 
 function GraphicsController:SetQuality(quality, shouldSave)
@@ -56,6 +84,7 @@ function GraphicsController:CycleQuality()
 	end
 
 	local nextIndex = currentIndex + 1
+
 	if nextIndex > #GameConfig.QualityOrder then
 		nextIndex = 1
 	end

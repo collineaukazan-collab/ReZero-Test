@@ -7,28 +7,36 @@ GameConfig.StairSegmentHeight = 180
 GameConfig.MoneyPerStud = 1
 GameConfig.DefaultMoneyMultiplier = 1
 
-GameConfig.HeightUpdateInterval = 0.2
+GameConfig.HeightUpdateInterval = 0.1
 GameConfig.ClientRenderUpdateInterval = 0.25
 
-GameConfig.FallDeathY = -120
+GameConfig.FallDeathY = -25
+GameConfig.GroundDeathY = 5
+
 GameConfig.KillWhenOutsideTowerRadius = true
-GameConfig.TowerSafeRadius = 95
-GameConfig.MinimumStudsBeforeFallKill = 25
+GameConfig.TowerSafeRadius = 140
+GameConfig.MinimumStudsBeforeFallKill = 20
+
+GameConfig.FallingVelocityToRagdoll = -28
+GameConfig.FallingHeightLossToRagdoll = 8
 
 GameConfig.DefaultQuality = "Medium"
 
 GameConfig.QualitySettings = {
-Low = {
-RenderDistance = 400,
-},
+	Low = {
+		RenderDistanceAbove = 450,
+		RenderDistanceBelow = 180,
+	},
 
-Medium = {
-RenderDistance = 900,
-},
+	Medium = {
+		RenderDistanceAbove = 900,
+		RenderDistanceBelow = 360,
+	},
 
-High = {
-RenderDistance = 1600,
-},
+	High = {
+		RenderDistanceAbove = 1600,
+		RenderDistanceBelow = 720,
+	},
 }
 
 GameConfig.QualityOrder = { "Low", "Medium", "High" }
@@ -36,17 +44,29 @@ GameConfig.QualityOrder = { "Low", "Medium", "High" }
 GameConfig.DataStoreName = "ReZeroLoopData_v1"
 
 GameConfig.DeathFadeDuration = 0.35
-GameConfig.DeathBlackScreenTime = 0.65
+GameConfig.DeathBlackScreenTime = 0.75
+
 GameConfig.RespawnSoundId = "rbxassetid://0"
 
+GameConfig.DefaultMusicVolume = 0.6
+GameConfig.DefaultSfxVolume = 0.8
+
+GameConfig.Character = {
+	WalkSpeed = 18,
+	JumpPower = 55,
+	JumpHeight = 7.2,
+	HipHeight = 2.2,
+	MaxSlopeAngle = 70,
+}
+
 GameConfig.Atmosphere = {
-Brightness = 0.7,
-Ambient = Color3.fromRGB(18, 18, 24),
-OutdoorAmbient = Color3.fromRGB(5, 5, 8),
-FogColor = Color3.fromRGB(10, 10, 14),
-FogStart = 25,
-FogEnd = 280,
-ClockTime = 0,
+	Brightness = 0.75,
+	Ambient = Color3.fromRGB(28, 28, 38),
+	OutdoorAmbient = Color3.fromRGB(8, 8, 14),
+	FogColor = Color3.fromRGB(10, 10, 18),
+	FogStart = 60,
+	FogEnd = 420,
+	ClockTime = 0,
 }
 
 return GameConfig
