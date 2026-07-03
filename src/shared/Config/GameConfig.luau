@@ -1,10 +1,10 @@
 local GameConfig = {}
 
 -- Centre réel de l'escalier.
--- Si ton escalier n'est pas centré en 0,0, change X/Z ici.
+-- Si ton escalier n'est pas centré ici, change X/Z.
 GameConfig.StairCenter = Vector3.new(-70, 0, 0)
 
--- Spawn reculé de 50 studs par rapport au centre de l'escalier.
+-- Spawn par rapport au centre de l'escalier.
 GameConfig.SpawnOffsetFromStair = Vector3.new(-20, 0, -30)
 GameConfig.SpawnPosition = GameConfig.StairCenter + GameConfig.SpawnOffsetFromStair
 
@@ -66,7 +66,18 @@ GameConfig.QualityOrder = { "Low", "Medium", "High" }
 
 GameConfig.DataStoreName = "ReZeroLoopData_v1"
 
-GameConfig.RespawnSoundId = ""
+GameConfig.RespawnSoundId = "137385031681735"
+
+GameConfig.DeathBlackScreenTime = 0.9
+GameConfig.RespawnFadeOutTime = 0.45
+GameConfig.FallDarkenTransparency = 0.25
+
+GameConfig.DefaultMusicVolume = 0.6
+GameConfig.DefaultSfxVolume = 0.8
+
+GameConfig.DefaultImpactMarksEnabled = true
+GameConfig.MaxImpactMarks = 40
+GameConfig.MaxPersistentCorpses = 8
 
 GameConfig.Stamina = {
 	Max = 100,
@@ -81,20 +92,14 @@ GameConfig.Stamina = {
 	-- Tu peux laisser à 0.
 	MinToSprint = 0,
 
-	-- Quand la stamina tombe à 0, il faudra attendre 18 avant de recourir.
+	-- Quand la stamina tombe à 0, il faut attendre cette valeur avant de recourir.
 	RecoverToSprint = 18,
 }
 
-GameConfig.DeathBlackScreenTime = 0.9
-GameConfig.RespawnFadeOutTime = 0.45
-GameConfig.FallDarkenTransparency = 0.25
-
-GameConfig.DefaultMusicVolume = 0.6
-GameConfig.DefaultSfxVolume = 0.8
-
-GameConfig.DefaultImpactMarksEnabled = true
-GameConfig.MaxImpactMarks = 40
-GameConfig.MaxPersistentCorpses = 8
+GameConfig.Rest = {
+	DrainPerSecond = 28,
+	DisableJump = true,
+}
 
 GameConfig.Insanity = {
 	Max = 100,
@@ -105,12 +110,30 @@ GameConfig.Insanity = {
 
 	FullDurationBeforeCollapse = 1,
 
+	-- Poussée quand l'insanity arrive à 100.
 	CollapsePushSpeed = 190,
 	CollapseDownSpeed = -135,
-	ShakeAtMax = 0.12,
 
+	-- Anciennes valeurs gardées pour compatibilité avec d'autres fichiers.
 	ScreenDarknessAtMax = 0.45,
-	ShakeStartRatio = 0.8,
+	ShakeStartRatio = 0.9,
+	ShakeAtMax = 0.025,
+}
+
+GameConfig.InsanityVisual = {
+	-- L'effet visuel commence seulement au-dessus de 90%.
+	StartRatio = 0.9,
+
+	-- Petit zoom propre.
+	MaxZoomAmount = 3.5,
+
+	-- Contours noirs.
+	EdgeDarknessAtMax = 0.82,
+	EdgeSizeAtMax = 0.22,
+
+	-- Très légère vibration au-dessus de 90%.
+	ShakeStartRatio = 0.9,
+	ShakeAtMax = 0.025,
 }
 
 GameConfig.Character = {
@@ -132,13 +155,13 @@ GameConfig.Atmosphere = {
 }
 
 GameConfig.MusicTracks = {
-	-- Remplace par tes vrais IDs Roblox audio
-	"rbxassetid://0",
-	"rbxassetid://0",
-	"rbxassetid://0",
+	-- Mets tes vrais IDs Roblox audio ici.
+	-- Exemple :
+	-- "rbxassetid://1234567890",
+	-- "rbxassetid://9876543210",
 }
 
 GameConfig.MusicFadeTime = 1
-GameConfig.MusicDelayBetweenTracks = 2
+GameConfig.MusicDelayBetweenTracks = 1
 
 return GameConfig

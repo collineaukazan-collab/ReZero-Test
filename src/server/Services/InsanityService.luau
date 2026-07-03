@@ -12,6 +12,7 @@ local function resetPlayer(player)
 	player:SetAttribute("Insanity", 0)
 	player:SetAttribute("InsanityActive", false)
 	player:SetAttribute("InsanityCollapsed", false)
+	player:SetAttribute("IsResting", false)
 	fullSince[player] = nil
 end
 
@@ -24,31 +25,36 @@ local function updatePlayer(player, deltaTime)
 	end
 
 	if character:GetAttribute("IsRagdolled") then
+		player:SetAttribute("IsResting", false)
 		return
 	end
 
 	if player:GetAttribute("InsanityCollapsed") then
+		player:SetAttribute("IsResting", false)
 		return
 	end
 
 	local floor = math.floor(player:GetAttribute("CurrentFloor") or 0)
 	local current = player:GetAttribute("Insanity") or 0
+	local isResting = player:GetAttribute("IsResting") == true
 
 	if floor < 1 then
-		current = math.max(0, current - GameConfig.Insanity.DecayPerSecondAtFloorZero * deltaTime)
-		player:SetAttribute("Insanity", current)
-		player:SetAttribute("InsanityActive", current > 0)
-		fullSince[player] = nil
-		return
+		current = current - GameConfig.Insanity.DecayPerSecondAtFloorZero * deltaTime
+	else
+		local gain = GameConfig.Insanity.BaseGainPerSecond
+			+ (floor * GameConfig.Insanity.GainPerFloorPerSecond)
+
+		current = current + gain * deltaTime
 	end
 
-	local gain = GameConfig.Insanity.BaseGainPerSecond
-		+ (floor * GameConfig.Insanity.GainPerFloorPerSecond)
+	if isResting then
+		current = current - GameConfig.Rest.DrainPerSecond * deltaTime
+	end
 
-	current = math.clamp(current + gain * deltaTime, 0, GameConfig.Insanity.Max)
+	current = math.clamp(current, 0, GameConfig.Insanity.Max)
 
 	player:SetAttribute("Insanity", current)
-	player:SetAttribute("InsanityActive", true)
+	player:SetAttribute("InsanityActive", current > 0)
 
 	if current >= GameConfig.Insanity.Max then
 		if not fullSince[player] then
@@ -58,6 +64,7 @@ local function updatePlayer(player, deltaTime)
 
 		if os.clock() - fullSince[player] >= GameConfig.Insanity.FullDurationBeforeCollapse then
 			player:SetAttribute("InsanityCollapsed", true)
+			player:SetAttribute("IsResting", false)
 
 			if ragdollService then
 				ragdollService:PushPlayerToCenter(

@@ -31,6 +31,11 @@ local InsanityEffectsController = requireController("InsanityEffectsController")
 local StaminaController = requireController("StaminaController")
 local MusicController = requireController("MusicController")
 local AnimationController = requireController("AnimationController")
+local ActionButtonsController = requireController("ActionButtonsController")
+
+if ActionButtonsController and ActionButtonsController.Start then
+	ActionButtonsController:Start()
+end
 
 if GraphicsController and GraphicsController.Start then
 	GraphicsController:Start()

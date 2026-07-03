@@ -22,6 +22,21 @@ local function isSprintKey(input)
 		or input.KeyCode == Enum.KeyCode.RightShift
 end
 
+local function setJumpEnabled(humanoid, enabled)
+	if not humanoid then
+		return
+	end
+
+	if enabled then
+		humanoid.JumpPower = GameConfig.Character.JumpPower
+		humanoid.JumpHeight = GameConfig.Character.JumpHeight
+	else
+		humanoid.Jump = false
+		humanoid.JumpPower = 0
+		humanoid.JumpHeight = 0
+	end
+end
+
 local function setupCharacter(character)
 	currentCharacter = character
 	currentHumanoid = character:WaitForChild("Humanoid", 10)
@@ -32,6 +47,7 @@ local function setupCharacter(character)
 
 	if currentHumanoid then
 		currentHumanoid.WalkSpeed = GameConfig.Stamina.WalkSpeed
+		setJumpEnabled(currentHumanoid, true)
 	end
 end
 
@@ -69,10 +85,31 @@ function StaminaController:Start()
 
 		if currentCharacter:GetAttribute("IsRagdolled") then
 			currentHumanoid.WalkSpeed = 0
+			setJumpEnabled(currentHumanoid, false)
 			return
 		end
 
+		local isResting = localPlayer:GetAttribute("IsResting") == true
+
+		if isResting then
+			currentHumanoid.WalkSpeed = 0
+			setJumpEnabled(currentHumanoid, false)
+
+			if os.clock() - lastSprintTime >= GameConfig.Stamina.RegenDelay then
+				stamina = math.min(
+					GameConfig.Stamina.Max,
+					stamina + GameConfig.Stamina.RegenPerSecond * deltaTime
+				)
+			end
+
+			localPlayer:SetAttribute("Stamina", stamina)
+			return
+		end
+
+		setJumpEnabled(currentHumanoid, true)
+
 		local moving = currentHumanoid.MoveDirection.Magnitude > 0.05
+		local runToggled = localPlayer:GetAttribute("RunToggled") == true
 
 		local recoverToSprint = GameConfig.Stamina.RecoverToSprint or 18
 		local minToSprint = GameConfig.Stamina.MinToSprint or 0
@@ -81,8 +118,10 @@ function StaminaController:Start()
 			exhausted = false
 		end
 
+		local wantsSprint = sprintHeld or runToggled
+
 		local canSprint =
-			sprintHeld
+			wantsSprint
 			and moving
 			and not exhausted
 			and stamina > minToSprint
@@ -97,6 +136,7 @@ function StaminaController:Start()
 				stamina = 0
 				exhausted = true
 				currentHumanoid.WalkSpeed = GameConfig.Stamina.WalkSpeed
+				localPlayer:SetAttribute("RunToggled", false)
 			end
 		else
 			currentHumanoid.WalkSpeed = GameConfig.Stamina.WalkSpeed

@@ -5,9 +5,9 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local MusicController = {}
 
+local random = Random.new()
 local currentSound = nil
 local lastTrackId = nil
-local random = Random.new()
 
 local function getOrCreateSoundGroup(name, volume)
 	local group = SoundService:FindFirstChild(name)
@@ -23,18 +23,21 @@ local function getOrCreateSoundGroup(name, volume)
 end
 
 local function getValidTracks()
-	local validTracks = {}
+	local tracks = {}
 
-	for _, soundId in ipairs(GameConfig.MusicTracks or {}) do
-		if type(soundId) == "string" and soundId ~= "" and soundId ~= "rbxassetid://0" then
-			table.insert(validTracks, soundId)
+	for _, id in ipairs(GameConfig.MusicTracks or {}) do
+		if type(id) == "string"
+			and id ~= ""
+			and id ~= "rbxassetid://0"
+		then
+			table.insert(tracks, id)
 		end
 	end
 
-	return validTracks
+	return tracks
 end
 
-local function chooseRandomTrack(tracks)
+local function chooseTrack(tracks)
 	if #tracks == 0 then
 		return nil
 	end
@@ -43,30 +46,25 @@ local function chooseRandomTrack(tracks)
 		return tracks[1]
 	end
 
-	local chosen = nil
-
-	for _ = 1, 10 do
-		chosen = tracks[random:NextInteger(1, #tracks)]
-
+	for _ = 1, 8 do
+		local chosen = tracks[random:NextInteger(1, #tracks)]
 		if chosen ~= lastTrackId then
-			break
+			return chosen
 		end
 	end
 
-	return chosen
+	return tracks[random:NextInteger(1, #tracks)]
 end
 
-local function playNextTrack()
+local function playNext()
 	local tracks = getValidTracks()
 
 	if #tracks == 0 then
-		warn("[MusicController] No valid music tracks configured.")
+		warn("[MusicController] No music tracks in GameConfig.MusicTracks.")
 		return
 	end
 
-	local musicGroup = getOrCreateSoundGroup("Music", GameConfig.DefaultMusicVolume or 0.6)
-	local trackId = chooseRandomTrack(tracks)
-
+	local trackId = chooseTrack(tracks)
 	if not trackId then
 		return
 	end
@@ -77,6 +75,8 @@ local function playNextTrack()
 		currentSound:Destroy()
 		currentSound = nil
 	end
+
+	local musicGroup = getOrCreateSoundGroup("Music", GameConfig.DefaultMusicVolume or 0.6)
 
 	local sound = Instance.new("Sound")
 	sound.Name = "BackgroundMusic"
@@ -89,9 +89,9 @@ local function playNextTrack()
 	currentSound = sound
 
 	sound.Ended:Connect(function()
-		task.delay(GameConfig.MusicDelayBetweenTracks or 2, function()
+		task.delay(GameConfig.MusicDelayBetweenTracks or 1, function()
 			if currentSound == sound then
-				playNextTrack()
+				playNext()
 			end
 		end)
 	end)
@@ -100,7 +100,7 @@ local function playNextTrack()
 end
 
 function MusicController:Start()
-	playNextTrack()
+	playNext()
 end
 
 return MusicController

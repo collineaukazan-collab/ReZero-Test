@@ -1,7 +1,7 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
@@ -9,27 +9,52 @@ local InsanityEffectsController = {}
 
 local localPlayer = Players.LocalPlayer
 
-local darkOverlay = nil
-local redOverlay = nil
-local wordLayer = nil
-local staticLayer = nil
+local gui = nil
+local topEdge = nil
+local bottomEdge = nil
+local leftEdge = nil
+local rightEdge = nil
 
+local baseFov = nil
+local currentStrength = 0
 local random = Random.new()
 
-local words = {
-	"RUN",
-	"FALL",
-	"LOOK",
-	"STOP",
-	"LOST",
-	"TURN",
-	"BACK",
-	"NO",
-	"WAKE",
-}
+local function getVisualConfig()
+	return GameConfig.InsanityVisual or {
+		StartRatio = 0.9,
+		MaxZoomAmount = 3.5,
+		EdgeDarknessAtMax = 0.82,
+		EdgeSizeAtMax = 0.22,
+		ShakeStartRatio = 0.9,
+		ShakeAtMax = 0.025,
+	}
+end
 
-local lastWordTime = 0
-local lastStaticTime = 0
+local function addGradient(frame, rotation)
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = rotation
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	gradient.Parent = frame
+end
+
+local function createEdge(parent, name, position, size, anchor, gradientRotation)
+	local frame = Instance.new("Frame")
+	frame.Name = name
+	frame.AnchorPoint = anchor
+	frame.Position = position
+	frame.Size = size
+	frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	frame.BackgroundTransparency = 1
+	frame.BorderSizePixel = 0
+	frame.Parent = parent
+
+	addGradient(frame, gradientRotation)
+
+	return frame
+end
 
 local function createGui()
 	local playerGui = localPlayer:WaitForChild("PlayerGui")
@@ -39,142 +64,48 @@ local function createGui()
 		old:Destroy()
 	end
 
-	local gui = Instance.new("ScreenGui")
+	gui = Instance.new("ScreenGui")
 	gui.Name = "InsanityEffectsGui"
 	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
 	gui.DisplayOrder = 600
 	gui.Parent = playerGui
 
-	darkOverlay = Instance.new("Frame")
-	darkOverlay.Name = "DarkOverlay"
-	darkOverlay.Size = UDim2.fromScale(1, 1)
-	darkOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	darkOverlay.BackgroundTransparency = 1
-	darkOverlay.BorderSizePixel = 0
-	darkOverlay.Parent = gui
-
-	redOverlay = Instance.new("Frame")
-	redOverlay.Name = "RedOverlay"
-	redOverlay.Size = UDim2.fromScale(1, 1)
-	redOverlay.BackgroundColor3 = Color3.fromRGB(135, 0, 0)
-	redOverlay.BackgroundTransparency = 1
-	redOverlay.BorderSizePixel = 0
-	redOverlay.Parent = gui
-
-	staticLayer = Instance.new("Frame")
-	staticLayer.Name = "StaticLayer"
-	staticLayer.Size = UDim2.fromScale(1, 1)
-	staticLayer.BackgroundTransparency = 1
-	staticLayer.Parent = gui
-
-	wordLayer = Instance.new("Frame")
-	wordLayer.Name = "WordLayer"
-	wordLayer.Size = UDim2.fromScale(1, 1)
-	wordLayer.BackgroundTransparency = 1
-	wordLayer.Parent = gui
-end
-
-local function clearLayer(layer)
-	if not layer then
-		return
-	end
-
-	for _, child in ipairs(layer:GetChildren()) do
-		child:Destroy()
-	end
-end
-
-local function spawnWord(intensity)
-	if not wordLayer then
-		return
-	end
-
-	local label = Instance.new("TextLabel")
-	label.Name = "InsanityWord"
-	label.BackgroundTransparency = 1
-	label.AnchorPoint = Vector2.new(0.5, 0.5)
-
-	label.Position = UDim2.fromScale(
-		random:NextNumber(0.06, 0.94),
-		random:NextNumber(0.08, 0.92)
+	topEdge = createEdge(
+		gui,
+		"TopEdge",
+		UDim2.fromScale(0, 0),
+		UDim2.fromScale(1, 0),
+		Vector2.new(0, 0),
+		90
 	)
 
-	label.Size = UDim2.fromOffset(
-		random:NextInteger(60, 145),
-		random:NextInteger(22, 48)
+	bottomEdge = createEdge(
+		gui,
+		"BottomEdge",
+		UDim2.fromScale(0, 1),
+		UDim2.fromScale(1, 0),
+		Vector2.new(0, 1),
+		270
 	)
 
-	label.Rotation = random:NextNumber(-35, 35)
-	label.Font = Enum.Font.GothamBlack
-	label.Text = words[random:NextInteger(1, #words)]
-	label.TextSize = random:NextInteger(18, 38)
-	label.TextColor3 = Color3.fromRGB(245, 45, 50)
-	label.TextTransparency = 0
-	label.TextStrokeColor3 = Color3.fromRGB(25, 0, 0)
-	label.TextStrokeTransparency = 0.25
-	label.Parent = wordLayer
-
-	local lifetime = random:NextNumber(0.06, 0.13)
-
-	local tween = TweenService:Create(
-		label,
-		TweenInfo.new(lifetime, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-		{
-			TextTransparency = 1,
-			TextStrokeTransparency = 1,
-			Rotation = label.Rotation + random:NextNumber(-40, 40),
-		}
+	leftEdge = createEdge(
+		gui,
+		"LeftEdge",
+		UDim2.fromScale(0, 0),
+		UDim2.fromScale(0, 1),
+		Vector2.new(0, 0),
+		0
 	)
 
-	tween:Play()
-
-	task.delay(lifetime + 0.03, function()
-		if label then
-			label:Destroy()
-		end
-	end)
-end
-
-local function spawnStatic(intensity)
-	if not staticLayer then
-		return
-	end
-
-	local count = math.floor(6 + intensity * 18)
-
-	for _ = 1, count do
-		local line = Instance.new("Frame")
-		line.Name = "StaticLine"
-		line.BorderSizePixel = 0
-
-		line.BackgroundColor3 = Color3.fromRGB(
-			random:NextInteger(160, 255),
-			random:NextInteger(15, 65),
-			random:NextInteger(15, 65)
-		)
-
-		line.BackgroundTransparency = random:NextNumber(0.45, 0.82)
-
-		line.Position = UDim2.fromScale(
-			random:NextNumber(0, 1),
-			random:NextNumber(0, 1)
-		)
-
-		line.Size = UDim2.fromOffset(
-			random:NextInteger(20, 240),
-			random:NextInteger(1, 3)
-		)
-
-		line.Rotation = random:NextNumber(-10, 10)
-		line.Parent = staticLayer
-
-		task.delay(random:NextNumber(0.025, 0.065), function()
-			if line then
-				line:Destroy()
-			end
-		end)
-	end
+	rightEdge = createEdge(
+		gui,
+		"RightEdge",
+		UDim2.fromScale(1, 0),
+		UDim2.fromScale(0, 1),
+		Vector2.new(1, 0),
+		180
+	)
 end
 
 local function getHumanoid()
@@ -186,66 +117,84 @@ local function getHumanoid()
 	return character:FindFirstChildOfClass("Humanoid")
 end
 
+local function smoothStep(value)
+	value = math.clamp(value, 0, 1)
+	return value * value * (3 - 2 * value)
+end
+
+local function updateEdges(strength)
+	local config = getVisualConfig()
+
+	local edgeSize = strength * config.EdgeSizeAtMax
+	local transparency = math.clamp(1 - strength * config.EdgeDarknessAtMax, 0.12, 1)
+
+	topEdge.Size = UDim2.fromScale(1, edgeSize)
+	bottomEdge.Size = UDim2.fromScale(1, edgeSize)
+	leftEdge.Size = UDim2.fromScale(edgeSize, 1)
+	rightEdge.Size = UDim2.fromScale(edgeSize, 1)
+
+	topEdge.BackgroundTransparency = transparency
+	bottomEdge.BackgroundTransparency = transparency
+	leftEdge.BackgroundTransparency = transparency
+	rightEdge.BackgroundTransparency = transparency
+end
+
 function InsanityEffectsController:Start()
 	createGui()
 
 	localPlayer.CharacterAdded:Connect(function()
-		clearLayer(wordLayer)
-		clearLayer(staticLayer)
-
 		local humanoid = getHumanoid()
 		if humanoid then
 			humanoid.CameraOffset = Vector3.zero
 		end
 	end)
 
-	RunService.RenderStepped:Connect(function()
-		local insanity = math.clamp(localPlayer:GetAttribute("Insanity") or 0, 0, 100)
-		local ratio = insanity / 100
-
-		if darkOverlay then
-			local darkness = ratio * 0.18
-			darkOverlay.BackgroundTransparency = math.clamp(1 - darkness, 0.78, 1)
-		end
-
-		if redOverlay then
-			local redPower = ratio * 0.42
-			redOverlay.BackgroundTransparency = math.clamp(1 - redPower, 0.55, 1)
-		end
-
-		local humanoid = getHumanoid()
-		if humanoid then
-			if ratio < 0.96 then
-				humanoid.CameraOffset = Vector3.zero
-			else
-				local shakePower = ((ratio - 0.96) / 0.04) * 0.06
-
-				humanoid.CameraOffset = Vector3.new(
-					random:NextNumber(-shakePower, shakePower),
-					random:NextNumber(-shakePower, shakePower),
-					0
-				)
-			end
-		end
-
-		if ratio < 0.75 then
+	RunService.RenderStepped:Connect(function(deltaTime)
+		local camera = Workspace.CurrentCamera
+		if not camera then
 			return
 		end
 
-		local now = os.clock()
-		local intensity = math.clamp((ratio - 0.75) / 0.25, 0.2, 1)
-
-		local wordDelay = 0.14 - intensity * 0.08
-		if now - lastWordTime >= wordDelay then
-			lastWordTime = now
-			spawnWord(intensity)
+		if not baseFov then
+			baseFov = camera.FieldOfView
 		end
 
-		local staticDelay = 0.08 - intensity * 0.045
-		if now - lastStaticTime >= staticDelay then
-			lastStaticTime = now
-			spawnStatic(intensity)
+		local config = getVisualConfig()
+
+		local insanity = math.clamp(localPlayer:GetAttribute("Insanity") or 0, 0, 100)
+		local ratio = insanity / 100
+
+		local targetStrength = 0
+		if ratio > config.StartRatio then
+			targetStrength = smoothStep((ratio - config.StartRatio) / (1 - config.StartRatio))
 		end
+
+		local alpha = math.clamp(deltaTime * 6, 0, 1)
+		currentStrength = currentStrength + (targetStrength - currentStrength) * alpha
+
+		updateEdges(currentStrength)
+
+		local targetFov = baseFov - currentStrength * config.MaxZoomAmount
+		camera.FieldOfView = camera.FieldOfView + (targetFov - camera.FieldOfView) * alpha
+
+		local humanoid = getHumanoid()
+		if not humanoid then
+			return
+		end
+
+		if ratio <= config.ShakeStartRatio then
+			humanoid.CameraOffset = Vector3.zero
+			return
+		end
+
+		local shakeRatio = smoothStep((ratio - config.ShakeStartRatio) / (1 - config.ShakeStartRatio))
+		local shakePower = shakeRatio * config.ShakeAtMax
+
+		humanoid.CameraOffset = Vector3.new(
+			random:NextNumber(-shakePower, shakePower),
+			random:NextNumber(-shakePower, shakePower),
+			0
+		)
 	end)
 end
 

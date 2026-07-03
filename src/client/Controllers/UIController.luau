@@ -213,7 +213,7 @@ function UIController:Start(graphicsController)
 	"InsanityFrame",
 	UDim2.new(0, 420, 0, 44),
 	UDim2.new(0.5, -210, 0, 18)
-)
+	)
 
 	insanityFrame.Visible = false
 
@@ -293,11 +293,6 @@ function UIController:Start(graphicsController)
 		rewardLabel.Text = "Reward: +" .. NumberUtil.formatInteger(lastReward)
 		qualityButton.Text = "Graphiques: " .. graphicsController:GetQuality()
 
-		local insanity = math.clamp(localPlayer:GetAttribute("Insanity") or 0, 0, 100)
-		local currentFloor = math.floor(localPlayer:GetAttribute("CurrentFloor") or 0)
-
-		insanityFrame.Visible = currentFloor >= 1 or insanity > 0
-		insanityBarFill.Size = UDim2.new(insanity / 100, 0, 1, 0)
 	end
 
 	settingsButton.Activated:Connect(function()

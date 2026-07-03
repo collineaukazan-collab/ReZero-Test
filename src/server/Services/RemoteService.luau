@@ -4,6 +4,18 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local RemoteService = {}
 
+local function getOrCreateRemoteEvent(folder, name)
+	local remote = folder:FindFirstChild(name)
+
+	if not remote then
+		remote = Instance.new("RemoteEvent")
+		remote.Name = name
+		remote.Parent = folder
+	end
+
+	return remote
+end
+
 function RemoteService:Start(playerDataService)
 	local remotes = ReplicatedStorage:FindFirstChild("Remotes")
 	if not remotes then
@@ -19,12 +31,8 @@ function RemoteService:Start(playerDataService)
 		getPlayerData.Parent = remotes
 	end
 
-	local setGraphicsQuality = remotes:FindFirstChild("SetGraphicsQuality")
-	if not setGraphicsQuality then
-		setGraphicsQuality = Instance.new("RemoteEvent")
-		setGraphicsQuality.Name = "SetGraphicsQuality"
-		setGraphicsQuality.Parent = remotes
-	end
+	local setGraphicsQuality = getOrCreateRemoteEvent(remotes, "SetGraphicsQuality")
+	local setResting = getOrCreateRemoteEvent(remotes, "SetResting")
 
 	getPlayerData.OnServerInvoke = function(player)
 		local profile = playerDataService:Get(player)
@@ -56,6 +64,20 @@ function RemoteService:Start(playerDataService)
 		end
 
 		playerDataService:SetGraphicsQuality(player, quality)
+	end)
+
+	setResting.OnServerEvent:Connect(function(player, resting)
+		if typeof(resting) ~= "boolean" then
+			return
+		end
+
+		local character = player.Character
+		if character and character:GetAttribute("IsRagdolled") then
+			player:SetAttribute("IsResting", false)
+			return
+		end
+
+		player:SetAttribute("IsResting", resting)
 	end)
 end
 
