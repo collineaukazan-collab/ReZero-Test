@@ -1,55 +1,79 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Controllers = script:WaitForChild("Controllers")
 
-local GraphicsController = require(Controllers.GraphicsController)
-local StairRenderController = require(Controllers.StairRenderController)
-local UIController = require(Controllers.UIController)
+local function requireController(name)
+	local module = Controllers:FindFirstChild(name)
 
-local AtmosphereController = Controllers:FindFirstChild("AtmosphereController")
-local DeathEffectsController = Controllers:FindFirstChild("DeathEffectsController")
-local DebugFlyController = Controllers:FindFirstChild("DebugFlyController")
-local InsanityBarController = Controllers:FindFirstChild("InsanityBarController")
-local InsanityEffectsController = Controllers:FindFirstChild("InsanityEffectsController")
-local MusicController = Controllers:FindFirstChild("MusicController")
-local AnimationController = Controllers:FindFirstChild("AnimationController")
-local StaminaController = Controllers:FindFirstChild("StaminaController")
+	if not module then
+		warn("[Client] Missing controller:", name)
+		return nil
+	end
 
-print("[Client] Starting ReZero-Test")
+	local success, result = pcall(require, module)
 
-GraphicsController:Start()
+	if not success then
+		warn("[Client] Failed to require", name, result)
+		return nil
+	end
 
-if AtmosphereController then
-	require(AtmosphereController):Start()
+	return result
 end
 
-if DeathEffectsController then
-	require(DeathEffectsController):Start()
+local GraphicsController = requireController("GraphicsController")
+local StairRenderController = requireController("StairRenderController")
+local UIController = requireController("UIController")
+local AtmosphereController = requireController("AtmosphereController")
+local DeathEffectsController = requireController("DeathEffectsController")
+local DebugFlyController = requireController("DebugFlyController")
+local InsanityBarController = requireController("InsanityBarController")
+local InsanityEffectsController = requireController("InsanityEffectsController")
+local StaminaController = requireController("StaminaController")
+local MusicController = requireController("MusicController")
+local AnimationController = requireController("AnimationController")
+
+if GraphicsController and GraphicsController.Start then
+	GraphicsController:Start()
 end
 
-if DebugFlyController then
-	require(DebugFlyController):Start()
+if AtmosphereController and AtmosphereController.Start then
+	AtmosphereController:Start()
 end
 
-if InsanityBarController then
-	require(InsanityBarController):Start()
+if DeathEffectsController and DeathEffectsController.Start then
+	DeathEffectsController:Start()
 end
 
-if InsanityEffectsController then
-	require(InsanityEffectsController):Start()
+if DebugFlyController and DebugFlyController.Start then
+	DebugFlyController:Start()
 end
 
-StairRenderController:Start(GraphicsController)
-UIController:Start(GraphicsController)
-
-if MusicController then
-	require(MusicController):Start()
+if InsanityBarController and InsanityBarController.Start then
+	InsanityBarController:Start()
 end
 
-if AnimationController then
-	require(AnimationController):Start()
+if InsanityEffectsController and InsanityEffectsController.Start then
+	InsanityEffectsController:Start()
 end
 
-if StaminaController then
-	require(StaminaController):Start()
+if StaminaController and StaminaController.Start then
+	StaminaController:Start()
+end
+
+if MusicController and MusicController.Start then
+	MusicController:Start()
+end
+
+if AnimationController and AnimationController.Start then
+	AnimationController:Start()
+end
+
+if StairRenderController and StairRenderController.Start and GraphicsController then
+	StairRenderController:Start(GraphicsController)
+end
+
+if UIController and UIController.Start and GraphicsController then
+	UIController:Start(GraphicsController)
 end
 
 print("[Client] ReZero-Test started")
