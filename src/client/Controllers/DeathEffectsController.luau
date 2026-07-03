@@ -2,6 +2,8 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
@@ -12,6 +14,7 @@ local localPlayer = Players.LocalPlayer
 local blackFrame = nil
 local deathSound = nil
 local fallDarkened = false
+local cameraConnection = nil
 
 local function getOrCreateSoundGroup(name, volume)
 	local group = SoundService:FindFirstChild(name)
@@ -74,8 +77,41 @@ local function playDeathSound()
 	deathSound:Play()
 end
 
+local function stopFallCamera()
+	if cameraConnection then
+		cameraConnection:Disconnect()
+		cameraConnection = nil
+	end
+end
+
+local function startFallCamera()
+	stopFallCamera()
+
+	cameraConnection = RunService.RenderStepped:Connect(function()
+		local character = localPlayer.Character
+		if not character then
+			return
+		end
+
+		local camera = Workspace.CurrentCamera
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		local head = character:FindFirstChild("Head")
+
+		if not camera then
+			return
+		end
+
+		if head and character:GetAttribute("IsRagdolled") then
+			camera.CameraSubject = head
+		elseif humanoid then
+			camera.CameraSubject = humanoid
+		end
+	end)
+end
+
 local function setupCharacter(character)
 	fallDarkened = false
+	stopFallCamera()
 
 	task.delay(0.15, function()
 		fadeBlackOut()
@@ -86,9 +122,15 @@ local function setupCharacter(character)
 		return
 	end
 
+	local camera = Workspace.CurrentCamera
+	if camera then
+		camera.CameraSubject = humanoid
+	end
+
 	humanoid.Died:Connect(function()
 		setBlackInstant()
 		playDeathSound()
+		stopFallCamera()
 	end)
 end
 
@@ -130,6 +172,7 @@ function DeathEffectsController:Start()
 
 	remotes:WaitForChild("FallStarted").OnClientEvent:Connect(function()
 		darkenDuringFall()
+		startFallCamera()
 	end)
 
 	remotes:WaitForChild("ForceBlackScreen").OnClientEvent:Connect(function()

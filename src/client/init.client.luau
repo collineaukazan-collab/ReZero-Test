@@ -7,6 +7,8 @@ local UIController = require(Controllers.UIController)
 local AtmosphereController = Controllers:FindFirstChild("AtmosphereController")
 local DeathEffectsController = Controllers:FindFirstChild("DeathEffectsController")
 local DebugFlyController = Controllers:FindFirstChild("DebugFlyController")
+local InsanityBarController = Controllers:FindFirstChild("InsanityBarController")
+local InsanityEffectsController = Controllers:FindFirstChild("InsanityEffectsController")
 
 print("[Client] Starting ReZero-Test")
 
@@ -22,6 +24,14 @@ end
 
 if DebugFlyController then
 	require(DebugFlyController):Start()
+end
+
+if InsanityBarController then
+	require(InsanityBarController):Start()
+end
+
+if InsanityEffectsController then
+	require(InsanityEffectsController):Start()
 end
 
 StairRenderController:Start(GraphicsController)

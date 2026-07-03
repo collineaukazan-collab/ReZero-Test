@@ -208,6 +208,40 @@ function UIController:Start(graphicsController)
 
 	local statsFrame = createFrame(screenGui, "StatsFrame", UDim2.new(0, 255, 0, 142), UDim2.new(0, 16, 0, 16))
 
+	local insanityFrame = createFrame(
+	screenGui,
+	"InsanityFrame",
+	UDim2.new(0, 420, 0, 44),
+	UDim2.new(0.5, -210, 0, 18)
+)
+
+	insanityFrame.Visible = false
+
+	local insanityLabel = createText(
+		insanityFrame,
+		"InsanityLabel",
+		"INSANITY",
+		UDim2.new(0, 105, 1, 0),
+		UDim2.new(0, 12, 0, 0),
+		14
+	)
+
+	local insanityBarBack = Instance.new("Frame")
+	insanityBarBack.Name = "BarBack"
+	insanityBarBack.Size = UDim2.new(1, -135, 0, 10)
+	insanityBarBack.Position = UDim2.new(0, 118, 0.5, -5)
+	insanityBarBack.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
+	insanityBarBack.BorderSizePixel = 0
+	insanityBarBack.Parent = insanityFrame
+
+	local insanityBarFill = Instance.new("Frame")
+	insanityBarFill.Name = "BarFill"
+	insanityBarFill.Size = UDim2.new(0, 0, 1, 0)
+	insanityBarFill.BackgroundColor3 = Color3.fromRGB(130, 20, 45)
+	insanityBarFill.BorderSizePixel = 0
+	insanityBarFill.Parent = insanityBarBack
+
+
 	local padding = Instance.new("UIPadding")
 	padding.PaddingTop = UDim.new(0, 12)
 	padding.PaddingLeft = UDim.new(0, 14)
@@ -258,6 +292,12 @@ function UIController:Start(graphicsController)
 		moneyLabel.Text = "Money: " .. NumberUtil.formatInteger(money)
 		rewardLabel.Text = "Reward: +" .. NumberUtil.formatInteger(lastReward)
 		qualityButton.Text = "Graphiques: " .. graphicsController:GetQuality()
+
+		local insanity = math.clamp(localPlayer:GetAttribute("Insanity") or 0, 0, 100)
+		local currentFloor = math.floor(localPlayer:GetAttribute("CurrentFloor") or 0)
+
+		insanityFrame.Visible = currentFloor >= 1 or insanity > 0
+		insanityBarFill.Size = UDim2.new(insanity / 100, 0, 1, 0)
 	end
 
 	settingsButton.Activated:Connect(function()
