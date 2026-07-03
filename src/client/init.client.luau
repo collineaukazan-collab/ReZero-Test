@@ -9,6 +9,9 @@ local DeathEffectsController = Controllers:FindFirstChild("DeathEffectsControlle
 local DebugFlyController = Controllers:FindFirstChild("DebugFlyController")
 local InsanityBarController = Controllers:FindFirstChild("InsanityBarController")
 local InsanityEffectsController = Controllers:FindFirstChild("InsanityEffectsController")
+local MusicController = Controllers:FindFirstChild("MusicController")
+local AnimationController = Controllers:FindFirstChild("AnimationController")
+local StaminaController = Controllers:FindFirstChild("StaminaController")
 
 print("[Client] Starting ReZero-Test")
 
@@ -36,5 +39,17 @@ end
 
 StairRenderController:Start(GraphicsController)
 UIController:Start(GraphicsController)
+
+if MusicController then
+	require(MusicController):Start()
+end
+
+if AnimationController then
+	require(AnimationController):Start()
+end
+
+if StaminaController then
+	require(StaminaController):Start()
+end
 
 print("[Client] ReZero-Test started")

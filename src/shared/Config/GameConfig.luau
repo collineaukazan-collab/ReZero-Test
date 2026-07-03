@@ -2,7 +2,7 @@ local GameConfig = {}
 
 -- Centre réel de l'escalier.
 -- Si ton escalier n'est pas centré en 0,0, change X/Z ici.
-GameConfig.StairCenter = Vector3.new(0, 0, 0)
+GameConfig.StairCenter = Vector3.new(-70, 0, 0)
 
 -- Spawn reculé de 50 studs par rapport au centre de l'escalier.
 GameConfig.SpawnOffsetFromStair = Vector3.new(-20, 0, -30)
@@ -32,10 +32,16 @@ GameConfig.CenterPullTargetRadius = 2
 GameConfig.CenterPullSpeed = 22
 GameConfig.CenterPullMaxForce = 2600
 
+-- Écran noir/mort plus tôt si le corps tombe très vite.
+GameConfig.DynamicGroundDeathEnabled = true
+GameConfig.DynamicGroundDeathMinSpeed = 80
+GameConfig.DynamicGroundDeathMaxBonus = 45
+GameConfig.DynamicGroundDeathSpeedMultiplier = 0.22
+
 -- Chute contrôlable.
 GameConfig.FallAccelerationEnabled = true
-GameConfig.FallAcceleration = 25
-GameConfig.MaxFallSpeed = -160
+GameConfig.FallAcceleration = 120
+GameConfig.MaxFallSpeed = -420
 
 GameConfig.DefaultQuality = "Medium"
 
@@ -62,9 +68,26 @@ GameConfig.DataStoreName = "ReZeroLoopData_v1"
 
 GameConfig.RespawnSoundId = ""
 
+GameConfig.Stamina = {
+	Max = 100,
+
+	WalkSpeed = 18,
+	SprintSpeed = 29,
+
+	DrainPerSecond = 24,
+	RegenPerSecond = 18,
+	RegenDelay = 0.75,
+
+	-- Tu peux laisser à 0.
+	MinToSprint = 0,
+
+	-- Quand la stamina tombe à 0, il faudra attendre 18 avant de recourir.
+	RecoverToSprint = 18,
+}
+
 GameConfig.DeathBlackScreenTime = 0.9
 GameConfig.RespawnFadeOutTime = 0.45
-GameConfig.FallDarkenTransparency = 0.55
+GameConfig.FallDarkenTransparency = 0.25
 
 GameConfig.DefaultMusicVolume = 0.6
 GameConfig.DefaultSfxVolume = 0.8
@@ -76,18 +99,18 @@ GameConfig.MaxPersistentCorpses = 8
 GameConfig.Insanity = {
 	Max = 100,
 
-	BaseGainPerSecond = 1.2,
-	GainPerFloorPerSecond = 0.35,
+	BaseGainPerSecond = 5,
+	GainPerFloorPerSecond = 1,
 	DecayPerSecondAtFloorZero = 25,
 
 	FullDurationBeforeCollapse = 1,
 
-	CollapsePushSpeed = 85,
-	CollapseDownSpeed = -35,
+	CollapsePushSpeed = 190,
+	CollapseDownSpeed = -135,
+	ShakeAtMax = 0.12,
 
 	ScreenDarknessAtMax = 0.45,
 	ShakeStartRatio = 0.8,
-	ShakeAtMax = 0.5,
 }
 
 GameConfig.Character = {
@@ -107,5 +130,15 @@ GameConfig.Atmosphere = {
 	FogEnd = 420,
 	ClockTime = 0,
 }
+
+GameConfig.MusicTracks = {
+	-- Remplace par tes vrais IDs Roblox audio
+	"rbxassetid://0",
+	"rbxassetid://0",
+	"rbxassetid://0",
+}
+
+GameConfig.MusicFadeTime = 1
+GameConfig.MusicDelayBetweenTracks = 2
 
 return GameConfig

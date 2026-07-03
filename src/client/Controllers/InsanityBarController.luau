@@ -1,121 +1,147 @@
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
-local InsanityBarController = {}
+local CharacterBarsController = {}
 
 local localPlayer = Players.LocalPlayer
 
-local frame = nil
-local leftFill = nil
-local rightFill = nil
+local staminaFill = nil
+local insanityFill = nil
+local staminaGui = nil
+local insanityGui = nil
 
-local function createGui()
-	local playerGui = localPlayer:WaitForChild("PlayerGui")
-
-	local old = playerGui:FindFirstChild("InsanityHUD")
-	if old then
-		old:Destroy()
+local function removeOldTopInsanityGui()
+	local playerGui = localPlayer:FindFirstChild("PlayerGui")
+	if not playerGui then
+		return
 	end
 
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "InsanityHUD"
-	gui.ResetOnSpawn = false
-	gui.IgnoreGuiInset = true
-	gui.DisplayOrder = 40
-	gui.Parent = playerGui
+	for _, name in ipairs({
+		"InsanityHUD",
+		"InsanityBarGui",
+		"InsanityGui",
+		"TopInsanityGui",
+	}) do
+		local old = playerGui:FindFirstChild(name)
+		if old then
+			old:Destroy()
+		end
+	end
+end
 
-	frame = Instance.new("Frame")
-	frame.Name = "InsanityFrame"
-	frame.Size = UDim2.new(0, 440, 0, 48)
-	frame.Position = UDim2.new(0.5, -220, 0, 18)
-	frame.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
-	frame.BackgroundTransparency = 0.04
-	frame.BorderSizePixel = 0
-	frame.Visible = false
-	frame.Parent = gui
+local function createVerticalBar(character, name, offset, fillColor)
+	local root = character:WaitForChild("HumanoidRootPart", 10)
+	if not root then
+		return nil, nil
+	end
+
+	local gui = Instance.new("BillboardGui")
+	gui.Name = name
+	gui.Adornee = root
+	gui.AlwaysOnTop = true
+	gui.MaxDistance = 120
+	gui.Size = UDim2.fromOffset(6, 48)
+	gui.StudsOffsetWorldSpace = offset
+	gui.Parent = character
+
+	local background = Instance.new("Frame")
+	background.Name = "Background"
+	background.Size = UDim2.fromScale(1, 1)
+	background.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
+	background.BackgroundTransparency = 0.72
+	background.BorderSizePixel = 0
+	background.Parent = gui
 
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(65, 65, 80)
-	stroke.Thickness = 1
-	stroke.Transparency = 0.25
-	stroke.Parent = frame
+	stroke.Color = Color3.fromRGB(230, 230, 230)
+	stroke.Thickness = 0.25
+	stroke.Transparency = 0.82
+	stroke.Parent = background
 
-	local label = Instance.new("TextLabel")
-	label.Name = "Label"
-	label.BackgroundTransparency = 1
-	label.Size = UDim2.new(0, 105, 1, 0)
-	label.Position = UDim2.new(0, 14, 0, 0)
-	label.Font = Enum.Font.GothamMedium
-	label.TextSize = 14
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.TextColor3 = Color3.fromRGB(230, 230, 240)
-	label.Text = "INSANITY"
-	label.Parent = frame
+	local holder = Instance.new("Frame")
+	holder.Name = "Holder"
+	holder.Size = UDim2.new(1, -2, 1, -2)
+	holder.Position = UDim2.fromOffset(1, 1)
+	holder.BackgroundTransparency = 1
+	holder.ClipsDescendants = true
+	holder.Parent = background
 
-	local bar = Instance.new("Frame")
-	bar.Name = "Bar"
-	bar.Size = UDim2.new(1, -140, 0, 10)
-	bar.Position = UDim2.new(0, 120, 0.5, -5)
-	bar.BackgroundColor3 = Color3.fromRGB(34, 34, 44)
-	bar.BorderSizePixel = 0
-	bar.Parent = frame
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.AnchorPoint = Vector2.new(0.5, 1)
+	fill.Position = UDim2.fromScale(0.5, 1)
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = fillColor
+	fill.BorderSizePixel = 0
+	fill.Parent = holder
 
-	local centerLine = Instance.new("Frame")
-	centerLine.Name = "CenterLine"
-	centerLine.Size = UDim2.new(0, 2, 1, 6)
-	centerLine.Position = UDim2.new(0.5, -1, 0, -3)
-	centerLine.BackgroundColor3 = Color3.fromRGB(220, 220, 230)
-	centerLine.BorderSizePixel = 0
-	centerLine.Parent = bar
-
-	leftFill = Instance.new("Frame")
-	leftFill.Name = "LeftFill"
-	leftFill.AnchorPoint = Vector2.new(1, 0)
-	leftFill.Position = UDim2.new(0.5, 0, 0, 0)
-	leftFill.Size = UDim2.new(0, 0, 1, 0)
-	leftFill.BackgroundColor3 = Color3.fromRGB(125, 15, 42)
-	leftFill.BorderSizePixel = 0
-	leftFill.Parent = bar
-
-	rightFill = Instance.new("Frame")
-	rightFill.Name = "RightFill"
-	rightFill.Position = UDim2.new(0.5, 0, 0, 0)
-	rightFill.Size = UDim2.new(0, 0, 1, 0)
-	rightFill.BackgroundColor3 = Color3.fromRGB(125, 15, 42)
-	rightFill.BorderSizePixel = 0
-	rightFill.Parent = bar
+	return gui, fill
 end
 
-local function update()
-	local insanity = math.clamp(localPlayer:GetAttribute("Insanity") or 0, 0, 100)
-	local floor = math.floor(localPlayer:GetAttribute("CurrentFloor") or 0)
+local function setupCharacter(character)
+	removeOldTopInsanityGui()
 
-	local ratio = insanity / 100
-	local halfRatio = ratio / 2
-
-	frame.Visible = floor >= 1 or insanity > 0
-
-	leftFill.Size = UDim2.new(halfRatio, 0, 1, 0)
-	rightFill.Size = UDim2.new(halfRatio, 0, 1, 0)
-end
-
-function InsanityBarController:Start()
-	createGui()
-
-	for _, attributeName in ipairs({
-		"Insanity",
-		"CurrentFloor",
-	}) do
-		localPlayer:GetAttributeChangedSignal(attributeName):Connect(update)
+	if staminaGui then
+		staminaGui:Destroy()
+		staminaGui = nil
 	end
 
-	task.spawn(function()
-		while true do
-			update()
-			task.wait(0.1)
-		end
-	end)
+	if insanityGui then
+		insanityGui:Destroy()
+		insanityGui = nil
+	end
 
-	update()
+	staminaGui, staminaFill = createVerticalBar(
+		character,
+		"StaminaBarWorld",
+		Vector3.new(-1.05, 0.95, 0),
+		Color3.fromRGB(80, 210, 135)
+	)
+
+	insanityGui, insanityFill = createVerticalBar(
+		character,
+		"InsanityBarWorld",
+		Vector3.new(1.05, 0.95, 0),
+		Color3.fromRGB(210, 45, 55)
+	)
 end
 
-return InsanityBarController
+function CharacterBarsController:Start()
+	removeOldTopInsanityGui()
+
+	localPlayer.CharacterAdded:Connect(function(character)
+		task.wait(0.2)
+		setupCharacter(character)
+	end)
+
+	if localPlayer.Character then
+		task.wait(0.2)
+		setupCharacter(localPlayer.Character)
+	end
+
+	RunService.RenderStepped:Connect(function()
+		removeOldTopInsanityGui()
+
+		local stamina = math.clamp(localPlayer:GetAttribute("Stamina") or 100, 0, 100)
+		local insanity = math.clamp(localPlayer:GetAttribute("Insanity") or 0, 0, 100)
+		local floor = localPlayer:GetAttribute("CurrentFloor") or 0
+
+		if staminaFill then
+			staminaFill.Size = UDim2.fromScale(1, stamina / 100)
+		end
+
+		if insanityFill then
+			insanityFill.Size = UDim2.fromScale(1, insanity / 100)
+		end
+
+		if staminaGui then
+			staminaGui.Enabled = true
+		end
+
+		if insanityGui then
+			insanityGui.Enabled = floor >= 1 or insanity > 0
+		end
+	end)
+end
+
+return CharacterBarsController

@@ -45,6 +45,19 @@ local function isR6(character)
 		and character:FindFirstChild("Right Leg")
 end
 
+local function isRuntimeObject(instance)
+	return instance:IsA("Script")
+		or instance:IsA("LocalScript")
+		or instance:IsA("VectorForce")
+		or instance:IsA("LinearVelocity")
+		or instance:IsA("BodyVelocity")
+		or instance:IsA("BodyGyro")
+		or instance:IsA("AngularVelocity")
+		or instance:IsA("BallSocketConstraint")
+		or instance:IsA("Attachment")
+		or instance:IsA("Motor6D")
+end
+
 local function createLooseSocket(motor)
 	local part0 = motor.Part0
 	local part1 = motor.Part1
@@ -119,13 +132,13 @@ local function addCenterVelocity(character)
 	attachment.Name = "CenterPullAttachment"
 	attachment.Parent = torso
 
-	local linearVelocity = Instance.new("LinearVelocity")
-	linearVelocity.Name = "CenterPullVelocity"
-	linearVelocity.Attachment0 = attachment
-	linearVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
-	linearVelocity.MaxForce = GameConfig.CenterPullMaxForce
-	linearVelocity.VectorVelocity = Vector3.zero
-	linearVelocity.Parent = torso
+	local velocity = Instance.new("LinearVelocity")
+	velocity.Name = "CenterPullVelocity"
+	velocity.Attachment0 = attachment
+	velocity.RelativeTo = Enum.ActuatorRelativeTo.World
+	velocity.MaxForce = GameConfig.CenterPullMaxForce or 2600
+	velocity.VectorVelocity = Vector3.zero
+	velocity.Parent = torso
 end
 
 local function ragdollCharacter(player, character)
@@ -153,6 +166,14 @@ local function ragdollCharacter(player, character)
 	humanoid.RequiresNeck = false
 	humanoid.PlatformStand = true
 	humanoid.AutoRotate = false
+
+	-- Important : empêcher les états qui peuvent faire "remonter" le perso.
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, false)
+
 	humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 
 	local animate = character:FindFirstChild("Animate")
@@ -187,20 +208,66 @@ function RagdollService:ApplyCenterPull(player)
 		return
 	end
 
-	local center = GameConfig.StairCenter
+	local center = GameConfig.StairCenter or Vector3.new(0, 0, 0)
 	local offset = Vector3.new(center.X - torso.Position.X, 0, center.Z - torso.Position.Z)
 	local distance = offset.Magnitude
 
-	if distance <= GameConfig.CenterPullTargetRadius then
+	local targetRadius = GameConfig.CenterPullTargetRadius or 2
+	if distance <= targetRadius then
 		velocityObject.VectorVelocity = Vector3.zero
 		return
 	end
 
 	local direction = offset.Unit
-	local speedRatio = math.clamp(distance / 70, 0.15, 1)
-	local speed = GameConfig.CenterPullSpeed * speedRatio
+	local speed = GameConfig.CenterPullSpeed or 22
 
-	velocityObject.VectorVelocity = Vector3.new(direction.X * speed, 0, direction.Z * speed)
+	-- Plus on est loin, plus ça tire, mais toujours uniquement à l'horizontale.
+	local scaledSpeed = math.clamp(distance * 0.18, 4, speed)
+
+	velocityObject.MaxForce = GameConfig.CenterPullMaxForce or 2600
+	velocityObject.VectorVelocity = Vector3.new(
+		direction.X * scaledSpeed,
+		0,
+		direction.Z * scaledSpeed
+	)
+end
+
+function RagdollService:ApplyFallPhysics(player, deltaTime)
+	if not GameConfig.FallAccelerationEnabled then
+		return
+	end
+
+	local character = player.Character
+	if not character or not character:GetAttribute("IsRagdolled") then
+		return
+	end
+
+	local torso = getTorso(character)
+	if not torso then
+		return
+	end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+	end
+
+	local velocity = torso.AssemblyLinearVelocity
+	local acceleration = GameConfig.FallAcceleration or 25
+	local maxFallSpeed = GameConfig.MaxFallSpeed or -160
+
+	-- Si le moteur physique essaye de faire remonter le perso,
+	-- on annule la remontée.
+	local currentY = math.min(velocity.Y, 0)
+
+	local newY = currentY - acceleration * deltaTime
+	newY = math.max(newY, maxFallSpeed)
+
+	torso.AssemblyLinearVelocity = Vector3.new(
+		velocity.X,
+		newY,
+		velocity.Z
+	)
 end
 
 function RagdollService:PushPlayerToCenter(player, horizontalSpeed, downSpeed)
@@ -216,18 +283,35 @@ function RagdollService:PushPlayerToCenter(player, horizontalSpeed, downSpeed)
 		return
 	end
 
-	local center = GameConfig.StairCenter
+	local center = GameConfig.StairCenter or Vector3.new(0, 0, 0)
 	local offset = Vector3.new(center.X - torso.Position.X, 0, center.Z - torso.Position.Z)
 
-	if offset.Magnitude > 1 then
-		local direction = offset.Unit
-		local currentVelocity = torso.AssemblyLinearVelocity
+	if offset.Magnitude <= 1 then
+		offset = Vector3.new(1, 0, 0)
+	end
 
-		torso.AssemblyLinearVelocity = Vector3.new(
-			direction.X * horizontalSpeed,
-			math.min(currentVelocity.Y, downSpeed),
-			direction.Z * horizontalSpeed
-		)
+	local direction = offset.Unit
+
+	torso.AssemblyLinearVelocity = Vector3.new(
+		direction.X * horizontalSpeed,
+		downSpeed,
+		direction.Z * horizontalSpeed
+	)
+
+	torso:ApplyImpulse(Vector3.new(
+		direction.X * torso.AssemblyMass * horizontalSpeed * 1.8,
+		torso.AssemblyMass * downSpeed * 1.2,
+		direction.Z * torso.AssemblyMass * horizontalSpeed * 1.8
+	))
+
+	for _, descendant in ipairs(character:GetDescendants()) do
+		if descendant:IsA("BasePart") and descendant.Name ~= "HumanoidRootPart" then
+			descendant:ApplyAngularImpulse(Vector3.new(
+				random:NextNumber(-1, 1),
+				random:NextNumber(-1, 1),
+				random:NextNumber(-1, 1)
+			) * descendant.AssemblyMass * 420)
+		end
 	end
 end
 
@@ -238,6 +322,7 @@ local function getLowestPart(character)
 	for _, descendant in ipairs(character:GetDescendants()) do
 		if descendant:IsA("BasePart") and descendant.Name ~= "HumanoidRootPart" then
 			local bottomY = descendant.Position.Y - descendant.Size.Y / 2
+
 			if bottomY < lowestY then
 				lowestY = bottomY
 				lowestPart = descendant
@@ -252,7 +337,8 @@ local function getImpactPosition(character)
 	local lowestPart = getLowestPart(character)
 
 	if not lowestPart then
-		return GameConfig.SpawnPlatformPosition + Vector3.new(0, 0.08, 0)
+		local center = GameConfig.StairCenter or Vector3.new(0, 0, 0)
+		return Vector3.new(center.X, 0, center.Z)
 	end
 
 	local params = RaycastParams.new()
@@ -266,10 +352,10 @@ local function getImpactPosition(character)
 	)
 
 	if result then
-		return result.Position + Vector3.new(0, 0.08, 0)
+		return result.Position
 	end
 
-	return Vector3.new(lowestPart.Position.X, GameConfig.SpawnPlatformPosition.Y + 0.08, lowestPart.Position.Z)
+	return Vector3.new(lowestPart.Position.X, 0, lowestPart.Position.Z)
 end
 
 local function createRoundImpactMark(player, character, impactPosition)
@@ -295,14 +381,20 @@ local function createRoundImpactMark(player, character, impactPosition)
 	mark.CanTouch = false
 	mark.CanQuery = false
 	mark.Material = Enum.Material.SmoothPlastic
-	mark.Color = Color3.fromRGB(85, 0, 0)
-	mark.Transparency = 0.16
+	mark.Color = Color3.fromRGB(90, 0, 0)
+	mark.Transparency = 0.14
 
-	local diameter = random:NextNumber(5.5, 9.5)
+	local diameter = random:NextNumber(6, 10)
+	local thickness = 0.06
 
-	-- Cylindre plat posé au sol, rond.
-	mark.Size = Vector3.new(diameter, 0.04, diameter)
-	mark.CFrame = CFrame.new(impactPosition + Vector3.new(0, 0.025, 0))
+	-- Important :
+	-- Dans Roblox, le cylindre est orienté sur l'axe X.
+	-- Donc on met l'épaisseur sur X, puis on le tourne pour le poser à plat.
+	mark.Size = Vector3.new(thickness, diameter, diameter)
+
+	mark.CFrame =
+		CFrame.new(impactPosition + Vector3.new(0, 0.04, 0))
+		* CFrame.Angles(0, 0, math.rad(90))
 
 	mark.Parent = folder
 
@@ -315,14 +407,7 @@ end
 
 local function stripRuntimeObjects(instance)
 	for _, descendant in ipairs(instance:GetDescendants()) do
-		if descendant:IsA("Script")
-			or descendant:IsA("LocalScript")
-			or descendant:IsA("VectorForce")
-			or descendant:IsA("LinearVelocity")
-			or descendant:IsA("BodyVelocity")
-			or descendant:IsA("BodyGyro")
-			or descendant:IsA("AngularVelocity")
-		then
+		if isRuntimeObject(descendant) then
 			descendant:Destroy()
 		end
 	end
@@ -336,15 +421,163 @@ local function getVerticalExtent(part, rotation)
 
 	return 0.5 * (
 		math.abs(right.Y) * size.X
-		+ math.abs(up.Y) * size.Y
-		+ math.abs(look.Y) * size.Z
+			+ math.abs(up.Y) * size.Y
+			+ math.abs(look.Y) * size.Z
 	)
 end
 
 local function placePartGrounded(part, positionXZ, rotation, groundY)
 	local extent = getVerticalExtent(part, rotation)
 	local position = Vector3.new(positionXZ.X, groundY + extent + 0.03, positionXZ.Z)
+
 	part.CFrame = CFrame.new(position) * rotation
+	part.AssemblyLinearVelocity = Vector3.zero
+	part.AssemblyAngularVelocity = Vector3.zero
+	part.Anchored = true
+	part.CanCollide = true
+	part.CustomPhysicalProperties = PhysicalProperties.new(1, 1, 0, 1, 0)
+end
+
+local function layCorpseOnGround(corpse, impactPosition)
+	local yaw = random:NextNumber(0, math.pi * 2)
+
+	local forward = Vector3.new(math.cos(yaw), 0, math.sin(yaw))
+	local right = Vector3.new(-forward.Z, 0, forward.X)
+
+	local groundY = impactPosition.Y
+	local base = Vector3.new(impactPosition.X, groundY, impactPosition.Z)
+
+	local torso = corpse:FindFirstChild("Torso")
+	local head = corpse:FindFirstChild("Head")
+	local leftArm = corpse:FindFirstChild("Left Arm")
+	local rightArm = corpse:FindFirstChild("Right Arm")
+	local leftLeg = corpse:FindFirstChild("Left Leg")
+	local rightLeg = corpse:FindFirstChild("Right Leg")
+	local root = corpse:FindFirstChild("HumanoidRootPart")
+
+	local flatRotation = CFrame.Angles(math.rad(90), yaw, 0)
+	local headRotation = CFrame.Angles(0, yaw, 0)
+
+	if torso then
+		placePartGrounded(torso, base, flatRotation, groundY)
+	end
+
+	if head then
+		placePartGrounded(head, base + forward * 1.55, headRotation, groundY)
+	end
+
+	if leftArm then
+		placePartGrounded(leftArm, base - right * 1.45, flatRotation * CFrame.Angles(0, 0, math.rad(14)), groundY)
+	end
+
+	if rightArm then
+		placePartGrounded(rightArm, base + right * 1.45, flatRotation * CFrame.Angles(0, 0, math.rad(-14)), groundY)
+	end
+
+	if leftLeg then
+		placePartGrounded(leftLeg, base - forward * 1.65 - right * 0.45, flatRotation, groundY)
+	end
+
+	if rightLeg then
+		placePartGrounded(rightLeg, base - forward * 1.65 + right * 0.45, flatRotation, groundY)
+	end
+
+	if root then
+		root.CFrame = CFrame.new(base + Vector3.new(0, 0.4, 0))
+		root.Transparency = 1
+		root.CanCollide = false
+		root.Anchored = true
+	end
+end
+
+local function placeCorpseAccessoriesOnGround(corpse, impactPosition)
+	local index = 0
+	local groundY = impactPosition.Y
+
+	for _, accessory in ipairs(corpse:GetChildren()) do
+		if accessory:IsA("Accessory") then
+			local handle = accessory:FindFirstChild("Handle")
+
+			if handle and handle:IsA("BasePart") then
+				index += 1
+
+				local angle = index * 1.35
+				local radius = 1.2 + (index % 3) * 0.35
+
+				local x = impactPosition.X + math.cos(angle) * radius
+				local z = impactPosition.Z + math.sin(angle) * radius
+				local y = groundY + handle.Size.Y / 2 + 0.04
+
+				handle.AssemblyLinearVelocity = Vector3.zero
+				handle.AssemblyAngularVelocity = Vector3.zero
+
+				handle.Anchored = true
+				handle.CanCollide = false
+				handle.CanTouch = false
+				handle.CanQuery = false
+
+				handle.CFrame =
+					CFrame.new(x, y, z)
+					* CFrame.Angles(
+						random:NextNumber(-0.25, 0.25),
+						random:NextNumber(0, math.pi * 2),
+						random:NextNumber(-0.25, 0.25)
+					)
+			end
+		end
+	end
+end
+
+local function createFlatCorpse(player, character, impactPosition)
+	if player:GetAttribute("ImpactMarksEnabled") == false then
+		return
+	end
+
+	if character:GetAttribute("CorpseCreated") then
+		return
+	end
+
+	character:SetAttribute("CorpseCreated", true)
+	character.Archivable = true
+
+	local corpseFolder = getOrCreateFolder(workspace, "PersistentCorpses")
+	local corpse = character:Clone()
+
+	corpse.Name = player.Name .. "_Corpse"
+	corpse:SetAttribute("OwnerUserId", player.UserId)
+
+	stripRuntimeObjects(corpse)
+
+	local humanoid = corpse:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		humanoid.Health = 0
+		humanoid.PlatformStand = true
+	end
+
+	layCorpseOnGround(corpse, impactPosition)
+	placeCorpseAccessoriesOnGround(corpse, impactPosition)
+
+	for _, descendant in ipairs(corpse:GetDescendants()) do
+		if descendant:IsA("BasePart") then
+			if descendant.Name == "HumanoidRootPart" then
+				descendant.Transparency = 1
+				descendant.CanCollide = false
+				descendant.Anchored = true
+			else
+				descendant.CanCollide = true
+				descendant.Anchored = true
+			end
+		end
+	end
+
+	corpse.Parent = corpseFolder
+
+	local corpses = corpseFolder:GetChildren()
+	while #corpses > GameConfig.MaxPersistentCorpses do
+		corpses[1]:Destroy()
+		table.remove(corpses, 1)
+	end
 end
 
 local function clearImpactVisuals(player)
@@ -360,111 +593,6 @@ local function clearImpactVisuals(player)
 				end
 			end
 		end
-	end
-end
-
-local function layCorpseOnGround(corpse, impactPosition)
-	local yaw = random:NextNumber(0, math.pi * 2)
-	local forward = Vector3.new(math.cos(yaw), 0, math.sin(yaw))
-	local right = Vector3.new(-forward.Z, 0, forward.X)
-
-	local groundY = impactPosition.Y
-
-	local torso = corpse:FindFirstChild("Torso")
-	local head = corpse:FindFirstChild("Head")
-	local leftArm = corpse:FindFirstChild("Left Arm")
-	local rightArm = corpse:FindFirstChild("Right Arm")
-	local leftLeg = corpse:FindFirstChild("Left Leg")
-	local rightLeg = corpse:FindFirstChild("Right Leg")
-	local root = corpse:FindFirstChild("HumanoidRootPart")
-
-	local flatRotation = CFrame.Angles(math.rad(90), yaw, 0)
-	local headRotation = CFrame.Angles(0, yaw, 0)
-
-	if torso then
-		placePartGrounded(torso, impactPosition, flatRotation, groundY)
-	end
-
-	if head then
-		placePartGrounded(head, impactPosition + forward * 1.45, headRotation, groundY)
-	end
-
-	if leftArm then
-		placePartGrounded(leftArm, impactPosition - right * 1.45, flatRotation * CFrame.Angles(0, 0, math.rad(12)), groundY)
-	end
-
-	if rightArm then
-		placePartGrounded(rightArm, impactPosition + right * 1.45, flatRotation * CFrame.Angles(0, 0, math.rad(-12)), groundY)
-	end
-
-	if leftLeg then
-		placePartGrounded(leftLeg, impactPosition - forward * 1.55 - right * 0.45, flatRotation, groundY)
-	end
-
-	if rightLeg then
-		placePartGrounded(rightLeg, impactPosition - forward * 1.55 + right * 0.45, flatRotation, groundY)
-	end
-
-	if root then
-		root.CFrame = CFrame.new(impactPosition + Vector3.new(0, 0.4, 0))
-		root.Transparency = 1
-		root.CanCollide = false
-		root.Anchored = true
-	end
-end
-
-local function createFlatCorpse(player, character, impactPosition)
-	if character:GetAttribute("CorpseCreated") then
-		return
-	end
-
-	character:SetAttribute("CorpseCreated", true)
-	character.Archivable = true
-
-	local corpseFolder = getOrCreateFolder(workspace, "PersistentCorpses")
-	local corpse = character:Clone()
-	corpse.Name = player.Name .. "_Corpse"
-
-	stripRuntimeObjects(corpse)
-
-	for _, descendant in ipairs(corpse:GetDescendants()) do
-		if descendant:IsA("Motor6D") or descendant:IsA("BallSocketConstraint") or descendant:IsA("Attachment") then
-			descendant:Destroy()
-		end
-	end
-
-	local humanoid = corpse:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-		humanoid.Health = 0
-		humanoid.PlatformStand = true
-	end
-
-	layCorpseOnGround(corpse, impactPosition)
-
-	for _, descendant in ipairs(corpse:GetDescendants()) do
-		if descendant:IsA("BasePart") then
-			descendant.AssemblyLinearVelocity = Vector3.zero
-			descendant.AssemblyAngularVelocity = Vector3.zero
-
-			if descendant.Name == "HumanoidRootPart" then
-				descendant.Transparency = 1
-				descendant.CanCollide = false
-				descendant.Anchored = true
-			else
-				descendant.Anchored = true
-				descendant.CanCollide = true
-				descendant.CustomPhysicalProperties = PhysicalProperties.new(1, 1, 0, 1, 0)
-			end
-		end
-	end
-
-	corpse.Parent = corpseFolder
-
-	local corpses = corpseFolder:GetChildren()
-	while #corpses > GameConfig.MaxPersistentCorpses do
-		corpses[1]:Destroy()
-		table.remove(corpses, 1)
 	end
 end
 
@@ -520,6 +648,13 @@ local function setupCharacter(player, character)
 	humanoid.RequiresNeck = false
 	humanoid.PlatformStand = false
 	humanoid.AutoRotate = true
+
+	-- Réactiver les états normaux au respawn.
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, true)
 end
 
 function RagdollService:Start()

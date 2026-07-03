@@ -51,6 +51,39 @@ local function shouldRagdoll(character, root, humanoid, currentStuds, runBestStu
 	return true
 end
 
+local function getFastestDownwardSpeed(character, root)
+	local fastest = math.max(0, -root.AssemblyLinearVelocity.Y)
+
+	for _, descendant in ipairs(character:GetDescendants()) do
+		if descendant:IsA("BasePart") and descendant.Name ~= "HumanoidRootPart" then
+			local speed = math.max(0, -descendant.AssemblyLinearVelocity.Y)
+
+			if speed > fastest then
+				fastest = speed
+			end
+		end
+	end
+
+	return fastest
+end
+
+local function getDynamicGroundDeathY(character, root)
+	local baseY = GameConfig.GroundDeathY or 7
+
+	if not GameConfig.DynamicGroundDeathEnabled then
+		return baseY
+	end
+
+	local speed = getFastestDownwardSpeed(character, root)
+	local minSpeed = GameConfig.DynamicGroundDeathMinSpeed or 80
+	local maxBonus = GameConfig.DynamicGroundDeathMaxBonus or 45
+	local multiplier = GameConfig.DynamicGroundDeathSpeedMultiplier or 0.22
+
+	local bonus = math.clamp((speed - minSpeed) * multiplier, 0, maxBonus)
+
+	return baseY + bonus
+end
+
 local function hasBodyTouchedBottom(character, root)
 	if root.Position.Y <= GameConfig.FallDeathY then
 		return true
@@ -60,11 +93,13 @@ local function hasBodyTouchedBottom(character, root)
 		return false
 	end
 
+	local dynamicGroundDeathY = getDynamicGroundDeathY(character, root)
+
 	for _, descendant in ipairs(character:GetDescendants()) do
 		if descendant:IsA("BasePart") and descendant.Name ~= "HumanoidRootPart" then
 			local bottomY = descendant.Position.Y - descendant.Size.Y / 2
 
-			if bottomY <= GameConfig.GroundDeathY then
+			if bottomY <= dynamicGroundDeathY then
 				return true
 			end
 		end
