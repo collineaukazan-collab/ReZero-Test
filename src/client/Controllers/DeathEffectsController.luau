@@ -9,9 +9,9 @@ local DeathEffectsController = {}
 
 local localPlayer = Players.LocalPlayer
 
-local screenGui = nil
 local blackFrame = nil
 local deathSound = nil
+local fallDarkened = false
 
 local function getOrCreateSoundGroup(name, volume)
 	local group = SoundService:FindFirstChild(name)
@@ -26,7 +26,73 @@ local function getOrCreateSoundGroup(name, volume)
 	return group
 end
 
-local function createGui()
+local function setBlackInstant()
+	if blackFrame then
+		blackFrame.BackgroundTransparency = 0
+	end
+end
+
+local function fadeBlackOut()
+	if not blackFrame then
+		return
+	end
+
+	local tween = TweenService:Create(
+		blackFrame,
+		TweenInfo.new(GameConfig.RespawnFadeOutTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ BackgroundTransparency = 1 }
+	)
+
+	tween:Play()
+end
+
+local function darkenDuringFall()
+	if fallDarkened or not blackFrame then
+		return
+	end
+
+	fallDarkened = true
+
+	local tween = TweenService:Create(
+		blackFrame,
+		TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ BackgroundTransparency = GameConfig.FallDarkenTransparency }
+	)
+
+	tween:Play()
+end
+
+local function playDeathSound()
+	if not deathSound then
+		return
+	end
+
+	if deathSound.SoundId == "" then
+		return
+	end
+
+	deathSound:Play()
+end
+
+local function setupCharacter(character)
+	fallDarkened = false
+
+	task.delay(0.15, function()
+		fadeBlackOut()
+	end)
+
+	local humanoid = character:WaitForChild("Humanoid", 10)
+	if not humanoid then
+		return
+	end
+
+	humanoid.Died:Connect(function()
+		setBlackInstant()
+		playDeathSound()
+	end)
+end
+
+function DeathEffectsController:Start()
 	local playerGui = localPlayer:WaitForChild("PlayerGui")
 
 	local oldGui = playerGui:FindFirstChild("DeathEffectsGui")
@@ -34,7 +100,7 @@ local function createGui()
 		oldGui:Destroy()
 	end
 
-	screenGui = Instance.new("ScreenGui")
+	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "DeathEffectsGui"
 	screenGui.ResetOnSpawn = false
 	screenGui.IgnoreGuiInset = true
@@ -52,54 +118,23 @@ local function createGui()
 
 	deathSound = Instance.new("Sound")
 	deathSound.Name = "DeathRespawnSound"
-	deathSound.SoundId = GameConfig.RespawnSoundId
 	deathSound.Volume = 1
 	deathSound.SoundGroup = sfxGroup
 	deathSound.Parent = SoundService
-end
 
-local function playDeathEffect()
-	if not blackFrame then
-		return
+	if GameConfig.RespawnSoundId ~= "" then
+		deathSound.SoundId = GameConfig.RespawnSoundId
 	end
 
-	if deathSound and deathSound.SoundId ~= "" and deathSound.SoundId ~= "rbxassetid://0" then
-		deathSound:Play()
-	end
+	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 
-	local fadeIn = TweenService:Create(
-		blackFrame,
-		TweenInfo.new(GameConfig.DeathFadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-		{ BackgroundTransparency = 0 }
-	)
-
-	fadeIn:Play()
-	fadeIn.Completed:Wait()
-
-	task.wait(GameConfig.DeathBlackScreenTime)
-
-	local fadeOut = TweenService:Create(
-		blackFrame,
-		TweenInfo.new(GameConfig.DeathFadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-		{ BackgroundTransparency = 1 }
-	)
-
-	fadeOut:Play()
-end
-
-local function setupCharacter(character)
-	local humanoid = character:WaitForChild("Humanoid", 10)
-	if not humanoid then
-		return
-	end
-
-	humanoid.Died:Connect(function()
-		task.spawn(playDeathEffect)
+	remotes:WaitForChild("FallStarted").OnClientEvent:Connect(function()
+		darkenDuringFall()
 	end)
-end
 
-function DeathEffectsController:Start()
-	createGui()
+	remotes:WaitForChild("ForceBlackScreen").OnClientEvent:Connect(function()
+		setBlackInstant()
+	end)
 
 	localPlayer.CharacterAdded:Connect(function(character)
 		setupCharacter(character)

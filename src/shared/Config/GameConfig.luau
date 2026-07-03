@@ -7,18 +7,27 @@ GameConfig.StairSegmentHeight = 180
 GameConfig.MoneyPerStud = 1
 GameConfig.DefaultMoneyMultiplier = 1
 
-GameConfig.HeightUpdateInterval = 0.1
+GameConfig.HeightUpdateInterval = 0.08
 GameConfig.ClientRenderUpdateInterval = 0.25
 
 GameConfig.FallDeathY = -25
-GameConfig.GroundDeathY = 5
+GameConfig.GroundDeathY = 7
+GameConfig.MaxRagdollFallTime = 8
 
 GameConfig.KillWhenOutsideTowerRadius = true
 GameConfig.TowerSafeRadius = 140
-GameConfig.MinimumStudsBeforeFallKill = 20
+GameConfig.MinimumStudsBeforeFallKill = 15
 
-GameConfig.FallingVelocityToRagdoll = -28
-GameConfig.FallingHeightLossToRagdoll = 8
+-- Ragdoll uniquement après une vraie chute, pas un simple saut.
+GameConfig.RagdollMinAirTime = 0.45
+GameConfig.RagdollMinFallDistance = 28
+GameConfig.FallingVelocityToRagdoll = -22
+
+-- Ramène doucement le corps vers le centre sans bloquer les membres.
+GameConfig.CenterPullEnabled = true
+GameConfig.CenterPullStartRadius = 28
+GameConfig.CenterPullStrength = 75
+GameConfig.CenterPullMaxForce = 8500
 
 GameConfig.DefaultQuality = "Medium"
 
@@ -43,13 +52,18 @@ GameConfig.QualityOrder = { "Low", "Medium", "High" }
 
 GameConfig.DataStoreName = "ReZeroLoopData_v1"
 
-GameConfig.DeathFadeDuration = 0.35
-GameConfig.DeathBlackScreenTime = 0.75
-
 GameConfig.RespawnSoundId = ""
+
+GameConfig.DeathBlackScreenTime = 0.9
+GameConfig.RespawnFadeOutTime = 0.45
+GameConfig.FallDarkenTransparency = 0.55
 
 GameConfig.DefaultMusicVolume = 0.6
 GameConfig.DefaultSfxVolume = 0.8
+
+GameConfig.DefaultImpactMarksEnabled = true
+GameConfig.MaxImpactMarks = 35
+GameConfig.MaxPersistentCorpses = 8
 
 GameConfig.Character = {
 	WalkSpeed = 18,

@@ -7,17 +7,8 @@ local HeightService = {}
 
 local ragdollService = nil
 
-local function getHorizontalDistanceFromTower(root)
-	local position = root.Position
-	return Vector2.new(position.X, position.Z).Magnitude
-end
-
-local function isOutsideTower(root)
-	if not GameConfig.KillWhenOutsideTowerRadius then
-		return false
-	end
-
-	return getHorizontalDistanceFromTower(root) > GameConfig.TowerSafeRadius
+local function isAirborne(humanoid)
+	return humanoid.FloorMaterial == Enum.Material.Air
 end
 
 local function shouldRagdoll(character, root, humanoid, currentStuds, runBestStuds)
@@ -29,36 +20,55 @@ local function shouldRagdoll(character, root, humanoid, currentStuds, runBestStu
 		return false
 	end
 
+	if not isAirborne(humanoid) then
+		character:SetAttribute("AirborneStartedAt", 0)
+		return false
+	end
+
+	local airborneStartedAt = character:GetAttribute("AirborneStartedAt") or 0
+	if airborneStartedAt <= 0 then
+		character:SetAttribute("AirborneStartedAt", os.clock())
+		return false
+	end
+
+	local airTime = os.clock() - airborneStartedAt
+	local fallDistance = runBestStuds - currentStuds
 	local velocityY = root.AssemblyLinearVelocity.Y
-	local heightLoss = runBestStuds - currentStuds
-	local state = humanoid:GetState()
 
-	local isFallingState =
-		state == Enum.HumanoidStateType.Freefall
-		or state == Enum.HumanoidStateType.FallingDown
-		or state == Enum.HumanoidStateType.Physics
-
-	if isOutsideTower(root) and velocityY < -8 then
-		return true
+	if airTime < GameConfig.RagdollMinAirTime then
+		return false
 	end
 
-	if isFallingState and velocityY <= GameConfig.FallingVelocityToRagdoll then
-		return true
+	if fallDistance < GameConfig.RagdollMinFallDistance then
+		return false
 	end
 
-	if velocityY <= GameConfig.FallingVelocityToRagdoll and heightLoss >= GameConfig.FallingHeightLossToRagdoll then
-		return true
+	if velocityY > GameConfig.FallingVelocityToRagdoll then
+		return false
 	end
 
-	return false
+	return true
 end
 
-local function isNearBottom(character, root)
+local function hasBodyTouchedBottom(character, root)
 	if root.Position.Y <= GameConfig.FallDeathY then
 		return true
 	end
 
-	if character:GetAttribute("IsRagdolled") and root.Position.Y <= GameConfig.GroundDeathY then
+	if not character:GetAttribute("IsRagdolled") then
+		return false
+	end
+
+	for _, descendant in ipairs(character:GetDescendants()) do
+		if descendant:IsA("BasePart") and descendant.Name ~= "HumanoidRootPart" then
+			if descendant.Position.Y <= GameConfig.GroundDeathY then
+				return true
+			end
+		end
+	end
+
+	local startedAt = character:GetAttribute("RagdollStartedAt") or 0
+	if startedAt > 0 and os.clock() - startedAt >= GameConfig.MaxRagdollFallTime then
 		return true
 	end
 
@@ -87,12 +97,15 @@ function HeightService:Start(playerDataService, injectedRagdollService)
 					playerDataService:SetBestStuds(player, runBestStuds)
 
 					if shouldRagdoll(character, root, humanoid, currentStuds, runBestStuds) then
-						if ragdollService then
-							ragdollService:RagdollPlayer(player)
-						end
+						ragdollService:RagdollPlayer(player)
 					end
 
-					if isNearBottom(character, root) then
+					if character:GetAttribute("IsRagdolled") then
+						ragdollService:ApplyCenterPull(player)
+					end
+
+					if hasBodyTouchedBottom(character, root) then
+						ragdollService:PrepareImpactDeath(player)
 						humanoid.Health = 0
 					end
 				end

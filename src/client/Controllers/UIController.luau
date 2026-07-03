@@ -17,6 +17,7 @@ local frameTimer = 0
 
 local musicVolume = GameConfig.DefaultMusicVolume
 local sfxVolume = GameConfig.DefaultSfxVolume
+local impactMarksEnabled = GameConfig.DefaultImpactMarksEnabled
 
 local function getOrCreateSoundGroup(name, volume)
 	local group = SoundService:FindFirstChild(name)
@@ -34,17 +35,35 @@ end
 local musicGroup = getOrCreateSoundGroup("Music", musicVolume)
 local sfxGroup = getOrCreateSoundGroup("SFX", sfxVolume)
 
-local function createText(parent, name, text, size, position)
+local function createFrame(parent, name, size, position)
+	local frame = Instance.new("Frame")
+	frame.Name = name
+	frame.Size = size
+	frame.Position = position
+	frame.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+	frame.BackgroundTransparency = 0.04
+	frame.BorderSizePixel = 0
+	frame.Parent = parent
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(55, 55, 70)
+	stroke.Thickness = 1
+	stroke.Transparency = 0.25
+	stroke.Parent = frame
+
+	return frame
+end
+
+local function createText(parent, name, text, size, position, textSize)
 	local label = Instance.new("TextLabel")
 	label.Name = name
 	label.BackgroundTransparency = 1
 	label.Size = size
 	label.Position = position
-	label.Font = Enum.Font.GothamBold
-	label.TextSize = 17
+	label.Font = Enum.Font.GothamMedium
+	label.TextSize = textSize or 15
 	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.TextColor3 = Color3.fromRGB(245, 245, 255)
-	label.TextStrokeTransparency = 0.55
+	label.TextColor3 = Color3.fromRGB(225, 225, 235)
 	label.Text = text
 	label.Parent = parent
 
@@ -56,100 +75,65 @@ local function createButton(parent, name, text, size, position)
 	button.Name = name
 	button.Size = size
 	button.Position = position
-	button.BackgroundColor3 = Color3.fromRGB(35, 35, 48)
-	button.BackgroundTransparency = 0.08
+	button.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
 	button.BorderSizePixel = 0
-	button.Font = Enum.Font.GothamBold
-	button.TextSize = 17
-	button.TextColor3 = Color3.fromRGB(255, 255, 255)
+	button.Font = Enum.Font.GothamMedium
+	button.TextSize = 15
+	button.TextColor3 = Color3.fromRGB(235, 235, 245)
 	button.Text = text
+	button.AutoButtonColor = true
 	button.Parent = parent
 
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 10)
-	corner.Parent = button
-
-	return button
-end
-
-local function createFrame(parent, name, size, position)
-	local frame = Instance.new("Frame")
-	frame.Name = name
-	frame.Size = size
-	frame.Position = position
-	frame.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
-	frame.BackgroundTransparency = 0.08
-	frame.BorderSizePixel = 0
-	frame.Parent = parent
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 14)
-	corner.Parent = frame
-
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(80, 80, 110)
+	stroke.Color = Color3.fromRGB(70, 70, 90)
 	stroke.Thickness = 1
 	stroke.Transparency = 0.35
-	stroke.Parent = frame
+	stroke.Parent = button
 
-	return frame
+	return button
 end
 
 local function createSlider(parent, name, title, position, defaultValue, callback)
 	local container = Instance.new("Frame")
 	container.Name = name
-	container.Size = UDim2.new(1, -48, 0, 62)
+	container.Size = UDim2.new(1, -36, 0, 56)
 	container.Position = position
 	container.BackgroundTransparency = 1
 	container.Parent = parent
 
-	local label = createText(container, "Label", title .. ": " .. tostring(math.floor(defaultValue * 100)) .. "%", UDim2.new(1, 0, 0, 24), UDim2.new(0, 0, 0, 0))
+	local label = createText(container, "Label", title .. ": " .. math.floor(defaultValue * 100) .. "%", UDim2.new(1, 0, 0, 22), UDim2.new(0, 0, 0, 0), 14)
 
 	local bar = Instance.new("Frame")
 	bar.Name = "Bar"
-	bar.Size = UDim2.new(1, 0, 0, 8)
-	bar.Position = UDim2.new(0, 0, 0, 38)
-	bar.BackgroundColor3 = Color3.fromRGB(45, 45, 62)
+	bar.Size = UDim2.new(1, 0, 0, 6)
+	bar.Position = UDim2.new(0, 0, 0, 36)
+	bar.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
 	bar.BorderSizePixel = 0
 	bar.Parent = container
-
-	local barCorner = Instance.new("UICorner")
-	barCorner.CornerRadius = UDim.new(1, 0)
-	barCorner.Parent = bar
 
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
 	fill.Size = UDim2.new(defaultValue, 0, 1, 0)
-	fill.BackgroundColor3 = Color3.fromRGB(120, 120, 180)
+	fill.BackgroundColor3 = Color3.fromRGB(130, 130, 170)
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
 
-	local fillCorner = Instance.new("UICorner")
-	fillCorner.CornerRadius = UDim.new(1, 0)
-	fillCorner.Parent = fill
-
 	local knob = Instance.new("Frame")
 	knob.Name = "Knob"
-	knob.Size = UDim2.new(0, 18, 0, 18)
-	knob.Position = UDim2.new(defaultValue, -9, 0.5, -9)
-	knob.BackgroundColor3 = Color3.fromRGB(230, 230, 255)
+	knob.Size = UDim2.new(0, 14, 0, 14)
+	knob.Position = UDim2.new(defaultValue, -7, 0.5, -7)
+	knob.BackgroundColor3 = Color3.fromRGB(235, 235, 245)
 	knob.BorderSizePixel = 0
 	knob.Parent = bar
 
-	local knobCorner = Instance.new("UICorner")
-	knobCorner.CornerRadius = UDim.new(1, 0)
-	knobCorner.Parent = knob
-
 	local dragging = false
-	local value = defaultValue
 
 	local function setValueFromX(x)
-		local relative = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
-		value = relative
+		local value = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
 
 		fill.Size = UDim2.new(value, 0, 1, 0)
-		knob.Position = UDim2.new(value, -9, 0.5, -9)
-		label.Text = title .. ": " .. tostring(math.floor(value * 100)) .. "%"
+		knob.Position = UDim2.new(value, -7, 0.5, -7)
+		label.Text = title .. ": " .. math.floor(value * 100) .. "%"
 
 		callback(value)
 	end
@@ -180,8 +164,6 @@ local function createSlider(parent, name, title, position, defaultValue, callbac
 	end)
 
 	callback(defaultValue)
-
-	return container
 end
 
 local function getLeaderstatValue(name)
@@ -198,21 +180,16 @@ local function getLeaderstatValue(name)
 	return value.Value
 end
 
-local function getPingText()
+local function getPing()
 	local success, pingSeconds = pcall(function()
 		return localPlayer:GetNetworkPing()
 	end)
 
 	if not success or type(pingSeconds) ~= "number" then
-		return "Ping: N/A"
+		return "N/A"
 	end
 
-	local pingMs = math.floor(pingSeconds * 2000)
-	return "Ping: " .. tostring(pingMs) .. " ms"
-end
-
-local function getServerLocationText()
-	return "Server: Roblox Cloud"
+	return tostring(math.floor(pingSeconds * 2000)) .. " ms"
 end
 
 function UIController:Start(graphicsController)
@@ -229,65 +206,44 @@ function UIController:Start(graphicsController)
 	screenGui.IgnoreGuiInset = true
 	screenGui.Parent = playerGui
 
-	local statsFrame = createFrame(screenGui, "StatsFrame", UDim2.new(0, 275, 0, 170), UDim2.new(0, 18, 0, 18))
+	local statsFrame = createFrame(screenGui, "StatsFrame", UDim2.new(0, 255, 0, 142), UDim2.new(0, 16, 0, 16))
 
-	local statsPadding = Instance.new("UIPadding")
-	statsPadding.PaddingTop = UDim.new(0, 12)
-	statsPadding.PaddingLeft = UDim.new(0, 14)
-	statsPadding.PaddingRight = UDim.new(0, 14)
-	statsPadding.Parent = statsFrame
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0, 12)
+	padding.PaddingLeft = UDim.new(0, 14)
+	padding.Parent = statsFrame
 
-	local statsLayout = Instance.new("UIListLayout")
-	statsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	statsLayout.Padding = UDim.new(0, 6)
-	statsLayout.Parent = statsFrame
+	local studsLabel = createText(statsFrame, "StudsLabel", "Studs: 0", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 0), 16)
+	local floorLabel = createText(statsFrame, "FloorLabel", "Floor: 0", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 26), 16)
+	local bestLabel = createText(statsFrame, "BestLabel", "Best: 0", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 52), 16)
+	local moneyLabel = createText(statsFrame, "MoneyLabel", "Money: 0", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 78), 16)
+	local rewardLabel = createText(statsFrame, "RewardLabel", "Reward: +0", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 104), 16)
 
-	local studsLabel = createText(statsFrame, "StudsLabel", "Studs: 0", UDim2.new(1, 0, 0, 22), UDim2.new())
-	local floorLabel = createText(statsFrame, "FloorLabel", "Floor: 0", UDim2.new(1, 0, 0, 22), UDim2.new())
-	local bestLabel = createText(statsFrame, "BestLabel", "Best: 0", UDim2.new(1, 0, 0, 22), UDim2.new())
-	local moneyLabel = createText(statsFrame, "MoneyLabel", "Money: 0", UDim2.new(1, 0, 0, 22), UDim2.new())
-	local rewardLabel = createText(statsFrame, "RewardLabel", "Last reward: +0", UDim2.new(1, 0, 0, 22), UDim2.new())
+	local perfFrame = createFrame(screenGui, "PerformanceFrame", UDim2.new(0, 160, 0, 70), UDim2.new(1, -176, 0, 16))
+	local fpsLabel = createText(perfFrame, "FpsLabel", "FPS: ...", UDim2.new(1, -20, 0, 22), UDim2.new(0, 12, 0, 12), 14)
+	local pingLabel = createText(perfFrame, "PingLabel", "Ping: ...", UDim2.new(1, -20, 0, 22), UDim2.new(0, 12, 0, 38), 14)
 
-	local performanceFrame = createFrame(screenGui, "PerformanceFrame", UDim2.new(0, 245, 0, 92), UDim2.new(1, -263, 0, 18))
+	local settingsButton = createButton(screenGui, "SettingsButton", "SETTINGS", UDim2.new(0, 120, 0, 38), UDim2.new(1, -136, 0, 96))
 
-	local perfPadding = Instance.new("UIPadding")
-	perfPadding.PaddingTop = UDim.new(0, 10)
-	perfPadding.PaddingLeft = UDim.new(0, 12)
-	perfPadding.Parent = performanceFrame
-
-	local fpsLabel = createText(performanceFrame, "FpsLabel", "FPS: ...", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 0))
-	local pingLabel = createText(performanceFrame, "PingLabel", "Ping: ...", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 27))
-	local serverLabel = createText(performanceFrame, "ServerLabel", getServerLocationText(), UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 54))
-
-	local settingsButton = createButton(screenGui, "SettingsButton", "⚙", UDim2.new(0, 54, 0, 54), UDim2.new(1, -72, 0, 122))
-	settingsButton.TextSize = 26
-
-	local menuFrame = createFrame(screenGui, "SettingsMenu", UDim2.new(0, 420, 0, 400), UDim2.new(0.5, -210, 0.5, -200))
+	local menuFrame = createFrame(screenGui, "SettingsMenu", UDim2.new(0, 390, 0, 360), UDim2.new(0.5, -195, 0.5, -180))
 	menuFrame.Visible = false
 
-	local title = createText(menuFrame, "Title", "PARAMÈTRES", UDim2.new(1, -40, 0, 36), UDim2.new(0, 24, 0, 18))
-	title.TextSize = 24
+	createText(menuFrame, "Title", "PARAMÈTRES", UDim2.new(1, -50, 0, 30), UDim2.new(0, 18, 0, 16), 20)
 
-	local closeButton = createButton(menuFrame, "CloseButton", "X", UDim2.new(0, 38, 0, 38), UDim2.new(1, -52, 0, 16))
+	local closeButton = createButton(menuFrame, "CloseButton", "X", UDim2.new(0, 36, 0, 32), UDim2.new(1, -50, 0, 14))
+	local qualityButton = createButton(menuFrame, "QualityButton", "Graphiques: " .. graphicsController:GetQuality(), UDim2.new(1, -36, 0, 42), UDim2.new(0, 18, 0, 62))
 
-	local qualityButton = createButton(menuFrame, "QualityButton", "Graphiques: " .. graphicsController:GetQuality(), UDim2.new(1, -48, 0, 46), UDim2.new(0, 24, 0, 75))
-
-	local renderInfoLabel = createText(menuFrame, "RenderInfoLabel", "", UDim2.new(1, -48, 0, 28), UDim2.new(0, 24, 0, 125))
-	renderInfoLabel.TextSize = 14
-
-	createSlider(menuFrame, "MusicSlider", "Musique", UDim2.new(0, 24, 0, 160), musicVolume, function(value)
+	createSlider(menuFrame, "MusicSlider", "Musique", UDim2.new(0, 18, 0, 122), musicVolume, function(value)
 		musicVolume = value
 		musicGroup.Volume = value
 	end)
 
-	createSlider(menuFrame, "SfxSlider", "Effets sonores", UDim2.new(0, 24, 0, 235), sfxVolume, function(value)
+	createSlider(menuFrame, "SfxSlider", "SfxSlider", UDim2.new(0, 18, 0, 192), sfxVolume, function(value)
 		sfxVolume = value
 		sfxGroup.Volume = value
 	end)
 
-	local infoLabel = createText(menuFrame, "InfoLabel", "Debug: appuie sur F pour activer/désactiver le vol.", UDim2.new(1, -48, 0, 54), UDim2.new(0, 24, 0, 325))
-	infoLabel.TextSize = 15
-	infoLabel.TextWrapped = true
+	local impactButton = createButton(menuFrame, "ImpactMarksButton", "Marques d'impact: ON", UDim2.new(1, -36, 0, 42), UDim2.new(0, 18, 0, 270))
 
 	local function updateStats()
 		local currentStuds = math.floor(localPlayer:GetAttribute("CurrentStuds") or getLeaderstatValue("Studs"))
@@ -300,10 +256,8 @@ function UIController:Start(graphicsController)
 		floorLabel.Text = "Floor: " .. NumberUtil.formatInteger(currentFloor)
 		bestLabel.Text = "Best: " .. NumberUtil.formatInteger(bestStuds)
 		moneyLabel.Text = "Money: " .. NumberUtil.formatInteger(money)
-		rewardLabel.Text = "Last reward: +" .. NumberUtil.formatInteger(lastReward)
-
+		rewardLabel.Text = "Reward: +" .. NumberUtil.formatInteger(lastReward)
 		qualityButton.Text = "Graphiques: " .. graphicsController:GetQuality()
-		renderInfoLabel.Text = "Affichage: +" .. graphicsController:GetRenderDistanceAbove() .. " studs / -" .. graphicsController:GetRenderDistanceBelow() .. " studs"
 	end
 
 	settingsButton.Activated:Connect(function()
@@ -317,6 +271,18 @@ function UIController:Start(graphicsController)
 	qualityButton.Activated:Connect(function()
 		graphicsController:CycleQuality()
 		updateStats()
+	end)
+
+	impactButton.Activated:Connect(function()
+		impactMarksEnabled = not impactMarksEnabled
+		localPlayer:SetAttribute("ImpactMarksEnabled", impactMarksEnabled)
+
+		local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+		if remotes and remotes:FindFirstChild("SetImpactMarksEnabled") then
+			remotes.SetImpactMarksEnabled:FireServer(impactMarksEnabled)
+		end
+
+		impactButton.Text = impactMarksEnabled and "Marques d'impact: ON" or "Marques d'impact: OFF"
 	end)
 
 	graphicsController.Changed:Connect(updateStats)
@@ -340,9 +306,8 @@ function UIController:Start(graphicsController)
 			frameCount = 0
 			frameTimer = 0
 
-			fpsLabel.Text = "FPS: " .. tostring(fps)
-			pingLabel.Text = getPingText()
-			serverLabel.Text = getServerLocationText()
+			fpsLabel.Text = "FPS: " .. fps
+			pingLabel.Text = "Ping: " .. getPing()
 		end
 	end)
 
