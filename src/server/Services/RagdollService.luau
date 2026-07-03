@@ -287,6 +287,8 @@ local function createRoundImpactMark(player, character, impactPosition)
 
 	local mark = Instance.new("Part")
 	mark.Name = "RoundImpactMark"
+	mark:SetAttribute("OwnerUserId", player.UserId)
+
 	mark.Shape = Enum.PartType.Cylinder
 	mark.Anchored = true
 	mark.CanCollide = false
@@ -298,8 +300,10 @@ local function createRoundImpactMark(player, character, impactPosition)
 
 	local diameter = random:NextNumber(5.5, 9.5)
 
-	mark.Size = Vector3.new(0.05, diameter, diameter)
-	mark.CFrame = CFrame.new(impactPosition) * CFrame.Angles(0, 0, math.rad(90))
+	-- Cylindre plat posé au sol, rond.
+	mark.Size = Vector3.new(diameter, 0.04, diameter)
+	mark.CFrame = CFrame.new(impactPosition + Vector3.new(0, 0.025, 0))
+
 	mark.Parent = folder
 
 	local marks = folder:GetChildren()
@@ -341,6 +345,22 @@ local function placePartGrounded(part, positionXZ, rotation, groundY)
 	local extent = getVerticalExtent(part, rotation)
 	local position = Vector3.new(positionXZ.X, groundY + extent + 0.03, positionXZ.Z)
 	part.CFrame = CFrame.new(position) * rotation
+end
+
+local function clearImpactVisuals(player)
+	for _, folderName in ipairs({ "ImpactMarks", "PersistentCorpses" }) do
+		local folder = workspace:FindFirstChild(folderName)
+
+		if folder then
+			for _, child in ipairs(folder:GetChildren()) do
+				local owner = child:GetAttribute("OwnerUserId")
+
+				if owner == nil or owner == player.UserId then
+					child:Destroy()
+				end
+			end
+		end
+	end
 end
 
 local function layCorpseOnGround(corpse, impactPosition)
@@ -509,8 +529,14 @@ function RagdollService:Start()
 	local setImpactMarks = getOrCreateRemote("SetImpactMarksEnabled")
 
 	setImpactMarks.OnServerEvent:Connect(function(player, enabled)
-		if typeof(enabled) == "boolean" then
-			player:SetAttribute("ImpactMarksEnabled", enabled)
+		if typeof(enabled) ~= "boolean" then
+			return
+		end
+
+		player:SetAttribute("ImpactMarksEnabled", enabled)
+
+		if not enabled then
+			clearImpactVisuals(player)
 		end
 	end)
 

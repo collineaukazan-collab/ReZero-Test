@@ -315,14 +315,19 @@ function UIController:Start(graphicsController)
 
 	impactButton.Activated:Connect(function()
 		impactMarksEnabled = not impactMarksEnabled
+
 		localPlayer:SetAttribute("ImpactMarksEnabled", impactMarksEnabled)
 
 		local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-		if remotes and remotes:FindFirstChild("SetImpactMarksEnabled") then
-			remotes.SetImpactMarksEnabled:FireServer(impactMarksEnabled)
+		local remote = remotes and remotes:FindFirstChild("SetImpactMarksEnabled")
+
+		if remote then
+			remote:FireServer(impactMarksEnabled)
 		end
 
-		impactButton.Text = impactMarksEnabled and "Marques d'impact: ON" or "Marques d'impact: OFF"
+		impactButton.Text = impactMarksEnabled
+			and "Impacts: ON"
+			or "Impacts: OFF"
 	end)
 
 	graphicsController.Changed:Connect(updateStats)

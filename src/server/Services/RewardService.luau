@@ -18,11 +18,16 @@ local function setupCharacter(player, character, playerDataService)
 		end
 
 		local runBestStuds = math.max(0, math.floor(player:GetAttribute("RunBestStuds") or 0))
+		local runBestFloor = math.max(0, math.floor(runBestStuds / GameConfig.StairSegmentHeight))
 		local multiplier = profile.MoneyMultiplier or GameConfig.DefaultMoneyMultiplier
 		local reward = math.floor(runBestStuds * GameConfig.MoneyPerStud * multiplier)
 
 		playerDataService:AddMoney(player, reward)
+
 		player:SetAttribute("LastReward", reward)
+		player:SetAttribute("LastRunStuds", runBestStuds)
+		player:SetAttribute("LastRunFloor", runBestFloor)
+		player:SetAttribute("LastRunMultiplier", multiplier)
 	end)
 end
 

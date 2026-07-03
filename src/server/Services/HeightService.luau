@@ -26,6 +26,7 @@ local function shouldRagdoll(character, root, humanoid, currentStuds, runBestStu
 	end
 
 	local airborneStartedAt = character:GetAttribute("AirborneStartedAt") or 0
+
 	if airborneStartedAt <= 0 then
 		character:SetAttribute("AirborneStartedAt", os.clock())
 		return false
@@ -61,13 +62,16 @@ local function hasBodyTouchedBottom(character, root)
 
 	for _, descendant in ipairs(character:GetDescendants()) do
 		if descendant:IsA("BasePart") and descendant.Name ~= "HumanoidRootPart" then
-			if descendant.Position.Y <= GameConfig.GroundDeathY then
+			local bottomY = descendant.Position.Y - descendant.Size.Y / 2
+
+			if bottomY <= GameConfig.GroundDeathY then
 				return true
 			end
 		end
 	end
 
 	local startedAt = character:GetAttribute("RagdollStartedAt") or 0
+
 	if startedAt > 0 and os.clock() - startedAt >= GameConfig.MaxRagdollFallTime then
 		return true
 	end
@@ -79,7 +83,13 @@ function HeightService:Start(playerDataService, injectedRagdollService)
 	ragdollService = injectedRagdollService
 
 	task.spawn(function()
+		local lastTime = os.clock()
+
 		while true do
+			local now = os.clock()
+			local deltaTime = now - lastTime
+			lastTime = now
+
 			for _, player in ipairs(Players:GetPlayers()) do
 				local character = player.Character
 				local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -102,6 +112,7 @@ function HeightService:Start(playerDataService, injectedRagdollService)
 
 					if character:GetAttribute("IsRagdolled") then
 						ragdollService:ApplyCenterPull(player)
+						ragdollService:ApplyFallPhysics(player, deltaTime)
 					end
 
 					if hasBodyTouchedBottom(character, root) then

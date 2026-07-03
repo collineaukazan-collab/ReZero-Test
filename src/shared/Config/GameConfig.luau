@@ -1,11 +1,12 @@
 local GameConfig = {}
 
-GameConfig.SpawnPosition = Vector3.new(0, 5, 0)
-GameConfig.SpawnPlatformPosition = Vector3.new(0, 0, 0)
-
 -- Centre réel de l'escalier.
--- Si ton escalier n'est pas centré en X=0, Z=0, change ces valeurs.
-GameConfig.StairCenter = Vector3.new(-70, 0, 0)
+-- Si ton escalier n'est pas centré en 0,0, change X/Z ici.
+GameConfig.StairCenter = Vector3.new(0, 0, 0)
+
+-- Spawn reculé de 50 studs par rapport au centre de l'escalier.
+GameConfig.SpawnOffsetFromStair = Vector3.new(-20, 0, -30)
+GameConfig.SpawnPosition = GameConfig.StairCenter + GameConfig.SpawnOffsetFromStair
 
 GameConfig.StairSegmentHeight = 180
 GameConfig.MoneyPerStud = 1
@@ -20,17 +21,21 @@ GameConfig.MaxRagdollFallTime = 100
 
 GameConfig.MinimumStudsBeforeFallKill = 15
 
+-- Déclenchement du ragdoll.
 GameConfig.RagdollMinAirTime = 0.35
 GameConfig.RagdollMinFallDistance = 18
 GameConfig.FallingVelocityToRagdoll = -22
 
 -- Attraction vers le centre de l'escalier.
--- Elle est volontairement faible mais constante.
 GameConfig.CenterPullEnabled = true
-GameConfig.CenterPullStartRadius = 6
 GameConfig.CenterPullTargetRadius = 2
 GameConfig.CenterPullSpeed = 22
 GameConfig.CenterPullMaxForce = 2600
+
+-- Chute contrôlable.
+GameConfig.FallAccelerationEnabled = true
+GameConfig.FallAcceleration = 25
+GameConfig.MaxFallSpeed = -160
 
 GameConfig.DefaultQuality = "Medium"
 
