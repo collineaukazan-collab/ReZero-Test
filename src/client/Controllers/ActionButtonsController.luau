@@ -12,8 +12,10 @@ local runButton = nil
 local auraButton = nil
 
 local setRestingRemote = nil
-local lastRestToggle = 0
+local lastRestButtonToggle = 0
 local lastRunToggle = 0
+
+local cHeld = false
 
 local function getRestingRemote()
 	if setRestingRemote then
@@ -36,12 +38,13 @@ local function setResting(value)
 	getRestingRemote():FireServer(value)
 end
 
-local function toggleRest()
-	if os.clock() - lastRestToggle < 0.18 then
+-- Bouton REST = toggle.
+local function toggleRestButton()
+	if os.clock() - lastRestButtonToggle < 0.18 then
 		return
 	end
 
-	lastRestToggle = os.clock()
+	lastRestButtonToggle = os.clock()
 
 	local current = localPlayer:GetAttribute("IsResting") == true
 	setResting(not current)
@@ -138,7 +141,7 @@ local function createGui()
 	auraButton = createButton(holder, "AuraButton", "AURA", UDim2.fromOffset(196, 0))
 
 	restButton.Activated:Connect(function()
-		toggleRest()
+		toggleRestButton()
 	end)
 
 	runButton.Activated:Connect(function()
@@ -152,17 +155,31 @@ local function createGui()
 	updateButtons()
 end
 
-local function onRestAction(_, inputState)
-	if inputState ~= Enum.UserInputState.Begin then
-		return Enum.ContextActionResult.Pass
-	end
-
+-- Touche C = maintien, pas toggle.
+local function onRestKey(_, inputState)
 	if UserInputService:GetFocusedTextBox() then
 		return Enum.ContextActionResult.Pass
 	end
 
-	toggleRest()
-	return Enum.ContextActionResult.Sink
+	if inputState == Enum.UserInputState.Begin then
+		if not cHeld then
+			cHeld = true
+			setResting(true)
+		end
+
+		return Enum.ContextActionResult.Sink
+	end
+
+	if inputState == Enum.UserInputState.End or inputState == Enum.UserInputState.Cancel then
+		if cHeld then
+			cHeld = false
+			setResting(false)
+		end
+
+		return Enum.ContextActionResult.Sink
+	end
+
+	return Enum.ContextActionResult.Pass
 end
 
 function ActionButtonsController:Start()
@@ -174,16 +191,17 @@ function ActionButtonsController:Start()
 	localPlayer:GetAttributeChangedSignal("IsResting"):Connect(updateButtons)
 	localPlayer:GetAttributeChangedSignal("RunToggled"):Connect(updateButtons)
 
-	ContextActionService:UnbindAction("ToggleRestAction")
+	ContextActionService:UnbindAction("HoldRestAction")
 	ContextActionService:BindAction(
-		"ToggleRestAction",
-		onRestAction,
+		"HoldRestAction",
+		onRestKey,
 		false,
 		Enum.KeyCode.C
 	)
 
 	localPlayer.CharacterAdded:Connect(function()
 		task.wait(0.1)
+		cHeld = false
 		setResting(false)
 		localPlayer:SetAttribute("RunToggled", false)
 		updateButtons()

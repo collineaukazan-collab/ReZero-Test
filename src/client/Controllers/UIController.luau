@@ -15,8 +15,10 @@ local fps = 0
 local frameCount = 0
 local frameTimer = 0
 
-local musicVolume = GameConfig.DefaultMusicVolume
-local sfxVolume = GameConfig.DefaultSfxVolume
+local audioConfig = GameConfig.Audio or {}
+
+local musicVolume = audioConfig.MusicVolume or GameConfig.DefaultMusicVolume or 0.6
+local sfxVolume = audioConfig.SfxVolume or GameConfig.DefaultSfxVolume or 0.8
 local impactMarksEnabled = GameConfig.DefaultImpactMarksEnabled
 
 local function getOrCreateSoundGroup(name, volume)
@@ -272,7 +274,7 @@ function UIController:Start(graphicsController)
 		musicGroup.Volume = value
 	end)
 
-	createSlider(menuFrame, "SfxSlider", "SfxSlider", UDim2.new(0, 18, 0, 192), sfxVolume, function(value)
+	createSlider(menuFrame, "SfxSlider", "Effets", UDim2.new(0, 18, 0, 192), sfxVolume, function(value)
 		sfxVolume = value
 		sfxGroup.Volume = value
 	end)

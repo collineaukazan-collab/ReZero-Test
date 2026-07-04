@@ -21,24 +21,20 @@ GameConfig.MaxRagdollFallTime = 100
 
 GameConfig.MinimumStudsBeforeFallKill = 15
 
--- Déclenchement du ragdoll.
 GameConfig.RagdollMinAirTime = 0.35
 GameConfig.RagdollMinFallDistance = 18
 GameConfig.FallingVelocityToRagdoll = -22
 
--- Attraction vers le centre de l'escalier.
 GameConfig.CenterPullEnabled = true
 GameConfig.CenterPullTargetRadius = 2
 GameConfig.CenterPullSpeed = 22
 GameConfig.CenterPullMaxForce = 2600
 
--- Écran noir/mort plus tôt si le corps tombe très vite.
 GameConfig.DynamicGroundDeathEnabled = true
 GameConfig.DynamicGroundDeathMinSpeed = 80
 GameConfig.DynamicGroundDeathMaxBonus = 45
 GameConfig.DynamicGroundDeathSpeedMultiplier = 0.22
 
--- Chute contrôlable.
 GameConfig.FallAccelerationEnabled = true
 GameConfig.FallAcceleration = 120
 GameConfig.MaxFallSpeed = -420
@@ -66,14 +62,42 @@ GameConfig.QualityOrder = { "Low", "Medium", "High" }
 
 GameConfig.DataStoreName = "ReZeroLoopData_v1"
 
-GameConfig.RespawnSoundId = "137385031681735"
+GameConfig.Audio = {
+	BackgroundTracks = {
+
+		"1839494888",
+		"",
+		"",
+	},
+
+	-- true = choisit une musique au hasard, sans rejouer la même deux fois de suite.
+	-- false = joue dans l'ordre : 1, 2, 3, puis revient à 1.
+	BackgroundRandom = false,
+
+	-- Si tu as une seule musique, elle loop.
+	-- Si tu en as plusieurs, elles alternent automatiquement.
+	BackgroundLoop = true,
+
+	MusicVolume = 0.6,
+
+	DeathSoundId = "314390675",
+	RespawnSoundId = "137385031681735",
+
+	SfxVolume = 0.5,
+
+	DelayBetweenBackgroundTracks = 1,
+}
+
+-- Anciennes valeurs gardées pour compatibilité avec tes autres scripts.
+GameConfig.RespawnSoundId = GameConfig.Audio.RespawnSoundId
+GameConfig.DefaultMusicVolume = GameConfig.Audio.MusicVolume
+GameConfig.DefaultSfxVolume = GameConfig.Audio.SfxVolume
+GameConfig.MusicTracks = GameConfig.Audio.BackgroundTracks
+GameConfig.MusicDelayBetweenTracks = GameConfig.Audio.DelayBetweenBackgroundTracks
 
 GameConfig.DeathBlackScreenTime = 0.9
 GameConfig.RespawnFadeOutTime = 0.45
 GameConfig.FallDarkenTransparency = 0.25
-
-GameConfig.DefaultMusicVolume = 0.6
-GameConfig.DefaultSfxVolume = 0.8
 
 GameConfig.DefaultImpactMarksEnabled = true
 GameConfig.MaxImpactMarks = 40
@@ -89,10 +113,7 @@ GameConfig.Stamina = {
 	RegenPerSecond = 18,
 	RegenDelay = 0.75,
 
-	-- Tu peux laisser à 0.
 	MinToSprint = 0,
-
-	-- Quand la stamina tombe à 0, il faut attendre cette valeur avant de recourir.
 	RecoverToSprint = 18,
 }
 
@@ -110,28 +131,22 @@ GameConfig.Insanity = {
 
 	FullDurationBeforeCollapse = 1,
 
-	-- Poussée quand l'insanity arrive à 100.
 	CollapsePushSpeed = 190,
 	CollapseDownSpeed = -135,
 
-	-- Anciennes valeurs gardées pour compatibilité avec d'autres fichiers.
 	ScreenDarknessAtMax = 0.45,
 	ShakeStartRatio = 0.9,
 	ShakeAtMax = 0.025,
 }
 
 GameConfig.InsanityVisual = {
-	-- L'effet visuel commence seulement au-dessus de 90%.
 	StartRatio = 0.9,
 
-	-- Petit zoom propre.
 	MaxZoomAmount = 3.5,
 
-	-- Contours noirs.
 	EdgeDarknessAtMax = 0.82,
 	EdgeSizeAtMax = 0.22,
 
-	-- Très légère vibration au-dessus de 90%.
 	ShakeStartRatio = 0.9,
 	ShakeAtMax = 0.025,
 }
@@ -153,15 +168,5 @@ GameConfig.Atmosphere = {
 	FogEnd = 420,
 	ClockTime = 0,
 }
-
-GameConfig.MusicTracks = {
-	-- Mets tes vrais IDs Roblox audio ici.
-	-- Exemple :
-	-- "rbxassetid://1234567890",
-	-- "rbxassetid://9876543210",
-}
-
-GameConfig.MusicFadeTime = 1
-GameConfig.MusicDelayBetweenTracks = 1
 
 return GameConfig
