@@ -63,26 +63,41 @@ GameConfig.QualityOrder = { "Low", "Medium", "High" }
 GameConfig.DataStoreName = "ReZeroLoopData_v1"
 
 GameConfig.Audio = {
-	BackgroundTracks = {
-		"1839494888",
-		"",
-		"",
+	-- Musiques affichées dans la radio.
+	-- Name = le titre visible dans l'UI.
+	-- SoundId accepte "123" ou "rbxassetid://123".
+	MusicLibrary = {
+		{
+			Name = "Funk plus sombre - Funky Soulster",
+			SoundId = "1839494888",
+		},
+
+		-- Ajoute tes autres musiques ici :
+		-- {
+		-- 	Name = "Subaru Edit - Dark Phonk",
+		-- 	SoundId = "TON_ID_ICI",
+		-- },
+		-- {
+		-- 	Name = "Witch Ambient",
+		-- 	SoundId = "TON_ID_ICI",
+		-- },
 	},
 
-	-- false = joue dans l'ordre : musique 1 -> 2 -> 3 -> 1...
-	-- true = choisit au hasard sans rejouer la même deux fois de suite.
+	-- Si MusicLibrary est vide, le script utilise cette ancienne liste.
+	BackgroundTracks = {},
+
+	-- true = musique suivante au hasard.
+	-- false = ordre normal.
 	BackgroundRandom = false,
 
-	-- Si une seule musique : elle loop.
-	-- Si plusieurs musiques : elles alternent.
-	BackgroundLoop = true,
+	-- Loop par défaut quand le joueur rejoint.
+	RadioDefaultLoop = false,
 
 	MusicVolume = 0.6,
 
 	DeathSoundId = "314390675",
 	RespawnSoundId = "137385031681735",
 
-	-- Le slider FX/SFX contrôlera ça.
 	SfxVolume = 0.8,
 
 	DelayBetweenBackgroundTracks = 1,
@@ -167,6 +182,62 @@ GameConfig.Atmosphere = {
 	FogStart = 60,
 	FogEnd = 420,
 	ClockTime = 0,
+}
+
+GameConfig.TowerSandFloor = {
+	Enabled = true,
+
+	-- Zone de sable dans la tour.
+	Center = GameConfig.StairCenter,
+	Size = 170,
+
+	-- Hauteur moyenne du sable.
+	BaseY = 0,
+	BottomY = -4,
+
+	-- Plus le Step est petit, plus le relief est précis.
+	Step = 6,
+
+	-- Relief très léger.
+	ReliefHeight = 1.15,
+	BigReliefScale = 0.035,
+	SmallReliefScale = 0.09,
+
+	-- Zones plates pour éviter un spawn bancal.
+	FlatSpawnRadius = 18,
+	FlatStairRadius = 34,
+
+	-- Position du spawn par rapport au centre de la tour.
+	SpawnOffset = Vector3.new(-20, 0, -30),
+	PlayerSpawnYOffset = 5,
+
+	-- Efface seulement la petite zone de terrain de la tour avant de refaire le sable.
+	ClearOldSandArea = true,
+}
+
+GameConfig.TowerSandstorm = {
+	Enabled = true,
+
+	Center = GameConfig.StairCenter,
+
+	-- Taille de la mini tempête.
+	Radius = 85,
+
+	-- Hauteur des particules autour du joueur.
+	HeightOffset = 10,
+
+	-- Intensité.
+	Rate = 55,
+
+	-- Vitesse du vent.
+	WindSpeed = 16,
+
+	-- Taille des particules.
+	ParticleMinSize = 5,
+	ParticleMaxSize = 13,
+
+	-- Couleur sable.
+	Color = Color3.fromRGB(210, 178, 115),
 }
 
 return GameConfig

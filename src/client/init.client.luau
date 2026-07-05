@@ -1,12 +1,13 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 local Controllers = script:WaitForChild("Controllers")
 
-local function requireController(name)
+local function requireController(name, optional)
 	local module = Controllers:FindFirstChild(name)
 
 	if not module then
-		warn("[Client] Missing controller:", name)
+		if not optional then
+			warn("[Client] Missing controller:", name)
+		end
+
 		return nil
 	end
 
@@ -30,12 +31,11 @@ local InsanityBarController = requireController("InsanityBarController")
 local InsanityEffectsController = requireController("InsanityEffectsController")
 local StaminaController = requireController("StaminaController")
 local MusicController = requireController("MusicController")
+local MusicPlayerController = requireController("MusicPlayerController")
+local ActionButtonsController = requireController("ActionButtonsController", true)
 local AnimationController = requireController("AnimationController")
-local ActionButtonsController = requireController("ActionButtonsController")
+local TowerSandstormController = requireController("TowerSandstormController", true)
 
-if ActionButtonsController and ActionButtonsController.Start then
-	ActionButtonsController:Start()
-end
 
 if GraphicsController and GraphicsController.Start then
 	GraphicsController:Start()
@@ -43,6 +43,10 @@ end
 
 if AtmosphereController and AtmosphereController.Start then
 	AtmosphereController:Start()
+end
+
+if TowerSandstormController and TowerSandstormController.Start then
+	TowerSandstormController:Start()
 end
 
 if DeathEffectsController and DeathEffectsController.Start then
@@ -67,6 +71,14 @@ end
 
 if MusicController and MusicController.Start then
 	MusicController:Start()
+end
+
+if MusicPlayerController and MusicPlayerController.Start then
+	MusicPlayerController:Start(MusicController)
+end
+
+if ActionButtonsController and ActionButtonsController.Start then
+	ActionButtonsController:Start()
 end
 
 if AnimationController and AnimationController.Start then
