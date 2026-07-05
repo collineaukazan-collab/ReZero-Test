@@ -64,18 +64,17 @@ GameConfig.DataStoreName = "ReZeroLoopData_v1"
 
 GameConfig.Audio = {
 	BackgroundTracks = {
-
 		"1839494888",
 		"",
 		"",
 	},
 
-	-- true = choisit une musique au hasard, sans rejouer la même deux fois de suite.
-	-- false = joue dans l'ordre : 1, 2, 3, puis revient à 1.
+	-- false = joue dans l'ordre : musique 1 -> 2 -> 3 -> 1...
+	-- true = choisit au hasard sans rejouer la même deux fois de suite.
 	BackgroundRandom = false,
 
-	-- Si tu as une seule musique, elle loop.
-	-- Si tu en as plusieurs, elles alternent automatiquement.
+	-- Si une seule musique : elle loop.
+	-- Si plusieurs musiques : elles alternent.
 	BackgroundLoop = true,
 
 	MusicVolume = 0.6,
@@ -83,12 +82,13 @@ GameConfig.Audio = {
 	DeathSoundId = "314390675",
 	RespawnSoundId = "137385031681735",
 
-	SfxVolume = 0.5,
+	-- Le slider FX/SFX contrôlera ça.
+	SfxVolume = 0.8,
 
 	DelayBetweenBackgroundTracks = 1,
 }
 
--- Anciennes valeurs gardées pour compatibilité avec tes autres scripts.
+-- Compatibilité avec les anciens scripts.
 GameConfig.RespawnSoundId = GameConfig.Audio.RespawnSoundId
 GameConfig.DefaultMusicVolume = GameConfig.Audio.MusicVolume
 GameConfig.DefaultSfxVolume = GameConfig.Audio.SfxVolume
