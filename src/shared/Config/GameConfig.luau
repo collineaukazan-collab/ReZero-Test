@@ -63,24 +63,21 @@ GameConfig.QualityOrder = { "Low", "Medium", "High" }
 GameConfig.DataStoreName = "ReZeroLoopData_v1"
 
 GameConfig.Audio = {
-	-- Musiques affichées dans la radio.
-	-- Name = le titre visible dans l'UI.
-	-- SoundId accepte "123" ou "rbxassetid://123".
 	MusicLibrary = {
 		{
-			Name = "Funk plus sombre - Funky Soulster",
-			SoundId = "1839494888",
+			Name = "Solarex",
+			SoundId = "112802475655427",
 		},
 
-		-- Ajoute tes autres musiques ici :
-		-- {
-		-- 	Name = "Subaru Edit - Dark Phonk",
-		-- 	SoundId = "TON_ID_ICI",
-		-- },
-		-- {
-		-- 	Name = "Witch Ambient",
-		-- 	SoundId = "TON_ID_ICI",
-		-- },
+		{
+			Name = "phonk",
+			SoundId = "14145623221",
+		},
+
+		{
+		 	Name = "",
+		 	SoundId = "",
+		},
 	},
 
 	-- Si MusicLibrary est vide, le script utilise cette ancienne liste.
@@ -224,13 +221,13 @@ GameConfig.TowerSandstorm = {
 	Radius = 85,
 
 	-- Hauteur des particules autour du joueur.
-	HeightOffset = 10,
+	HeightOffset = 0,
 
 	-- Intensité.
-	Rate = 55,
+	Rate = 10,
 
 	-- Vitesse du vent.
-	WindSpeed = 16,
+	WindSpeed = 5,
 
 	-- Taille des particules.
 	ParticleMinSize = 5,
