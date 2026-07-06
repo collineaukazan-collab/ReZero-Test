@@ -1,22 +1,71 @@
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local InsanityService = {}
 
+local fullInsanitySince = {}
 local ragdollService = nil
-local fullSince = {}
 
-local function resetPlayer(player)
+local function getRagdollService()
+	if ragdollService ~= nil then
+		return ragdollService
+	end
+
+	local success, result = pcall(function()
+		return require(script.Parent:WaitForChild("RagdollService"))
+	end)
+
+	if success then
+		ragdollService = result
+	else
+		ragdollService = false
+	end
+
+	return ragdollService
+end
+
+local function getInsanityConfig()
+	return GameConfig.Insanity or {}
+end
+
+local function getRestConfig()
+	return GameConfig.Rest or {}
+end
+
+local function clampInsanity(value)
+	local config = getInsanityConfig()
+	local maxValue = config.Max or 100
+
+	return math.clamp(value, 0, maxValue)
+end
+
+local function getCurrentFloor(player)
+	return math.floor(tonumber(player:GetAttribute("CurrentFloor")) or 0)
+end
+
+local function isCharacterAlive(player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+	return humanoid ~= nil and humanoid.Health > 0
+end
+
+local function resetPlayerInsanity(player)
 	player:SetAttribute("Insanity", 0)
 	player:SetAttribute("InsanityActive", false)
 	player:SetAttribute("InsanityCollapsed", false)
-	player:SetAttribute("IsResting", false)
-	fullSince[player] = nil
+
+	fullInsanitySince[player] = nil
 end
 
-local function updatePlayer(player, deltaTime)
+local function collapsePlayer(player)
+	if player:GetAttribute("InsanityCollapsed") == true then
+		return
+	end
+
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
@@ -24,99 +73,132 @@ local function updatePlayer(player, deltaTime)
 		return
 	end
 
-	if character:GetAttribute("IsRagdolled") then
-		player:SetAttribute("IsResting", false)
+	player:SetAttribute("InsanityCollapsed", true)
+	player:SetAttribute("IsResting", false)
+
+	local service = getRagdollService()
+
+	if service then
+		if service.PushPlayerToCenter then
+			pcall(function()
+				service:PushPlayerToCenter(player)
+			end)
+		elseif service.RagdollCharacter then
+			pcall(function()
+				service:RagdollCharacter(character)
+			end)
+		end
+	end
+
+	print("[InsanityService] Collapse:", player.Name)
+end
+
+local function calculateGain(player, currentFloor)
+	local config = getInsanityConfig()
+
+	local baseGain = config.BaseGainPerSecond or 0
+	local gainPerFloor = config.GainPerFloorPerSecond or 0
+
+	local gain = baseGain + currentFloor * gainPerFloor
+
+	-- Wrath : réduit le gain d'insanity.
+	gain *= player:GetAttribute("SinInsanityMultiplier") or 1
+
+	return math.max(0, gain)
+end
+
+local function updatePlayer(player, dt)
+	if not isCharacterAlive(player) then
 		return
 	end
 
-	if player:GetAttribute("InsanityCollapsed") then
-		player:SetAttribute("IsResting", false)
+	local config = getInsanityConfig()
+	local restConfig = getRestConfig()
+
+	local maxInsanity = config.Max or 100
+	local currentFloor = getCurrentFloor(player)
+	local insanity = tonumber(player:GetAttribute("Insanity")) or 0
+
+	if player:GetAttribute("InsanityCollapsed") == true then
 		return
 	end
 
-	local floor = math.floor(player:GetAttribute("CurrentFloor") or 0)
-	local current = player:GetAttribute("Insanity") or 0
-	local isResting = player:GetAttribute("IsResting") == true
-
-	if floor < 1 then
-		current = current - GameConfig.Insanity.DecayPerSecondAtFloorZero * deltaTime
+	if currentFloor >= 1 then
+		local gain = calculateGain(player, currentFloor)
+		insanity += gain * dt
 	else
-		local gain = GameConfig.Insanity.BaseGainPerSecond
-			+ (floor * GameConfig.Insanity.GainPerFloorPerSecond)
-
-		current = current + gain * deltaTime
+		local decay = config.DecayPerSecondAtFloorZero or 0
+		insanity -= decay * dt
 	end
 
-	if isResting then
-		current = current - GameConfig.Rest.DrainPerSecond * deltaTime
+	-- Le repos réduit l'insanity même si tu es dans les étages.
+	if player:GetAttribute("IsResting") == true then
+		local restDrain = restConfig.DrainPerSecond or 0
+		insanity -= restDrain * dt
 	end
 
-	current = math.clamp(current, 0, GameConfig.Insanity.Max)
+	insanity = clampInsanity(insanity)
 
-	player:SetAttribute("Insanity", current)
-	player:SetAttribute("InsanityActive", current > 0)
+	player:SetAttribute("Insanity", insanity)
+	player:SetAttribute("InsanityActive", currentFloor >= 1 or insanity > 0)
 
-	if current >= GameConfig.Insanity.Max then
-		if not fullSince[player] then
-			fullSince[player] = os.clock()
-			return
+	if insanity >= maxInsanity then
+		if not fullInsanitySince[player] then
+			fullInsanitySince[player] = os.clock()
 		end
 
-		if os.clock() - fullSince[player] >= GameConfig.Insanity.FullDurationBeforeCollapse then
-			player:SetAttribute("InsanityCollapsed", true)
-			player:SetAttribute("IsResting", false)
+		local duration = config.FullDurationBeforeCollapse or 1
 
-			if ragdollService then
-				ragdollService:PushPlayerToCenter(
-					player,
-					GameConfig.Insanity.CollapsePushSpeed,
-					GameConfig.Insanity.CollapseDownSpeed
-				)
-			end
+		if os.clock() - fullInsanitySince[player] >= duration then
+			collapsePlayer(player)
 		end
 	else
-		fullSince[player] = nil
+		fullInsanitySince[player] = nil
 	end
 end
 
-function InsanityService:Start(injectedRagdollService)
-	ragdollService = injectedRagdollService
+local function setupPlayer(player)
+	if player:GetAttribute("Insanity") == nil then
+		player:SetAttribute("Insanity", 0)
+	end
 
+	if player:GetAttribute("InsanityActive") == nil then
+		player:SetAttribute("InsanityActive", false)
+	end
+
+	if player:GetAttribute("InsanityCollapsed") == nil then
+		player:SetAttribute("InsanityCollapsed", false)
+	end
+
+	player.CharacterAdded:Connect(function()
+		resetPlayerInsanity(player)
+	end)
+
+	player.CharacterRemoving:Connect(function()
+		fullInsanitySince[player] = nil
+	end)
+end
+
+function InsanityService:Start()
 	Players.PlayerAdded:Connect(function(player)
-		resetPlayer(player)
-
-		player.CharacterAdded:Connect(function()
-			resetPlayer(player)
-		end)
+		setupPlayer(player)
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
-		fullSince[player] = nil
+		fullInsanitySince[player] = nil
 	end)
 
 	for _, player in ipairs(Players:GetPlayers()) do
-		resetPlayer(player)
-
-		player.CharacterAdded:Connect(function()
-			resetPlayer(player)
-		end)
+		setupPlayer(player)
 	end
 
-	task.spawn(function()
-		local lastTime = os.clock()
-
-		while true do
-			local now = os.clock()
-			local deltaTime = now - lastTime
-			lastTime = now
-
-			for _, player in ipairs(Players:GetPlayers()) do
-				updatePlayer(player, deltaTime)
-			end
-
-			task.wait(0.1)
+	RunService.Heartbeat:Connect(function(dt)
+		for _, player in ipairs(Players:GetPlayers()) do
+			updatePlayer(player, dt)
 		end
 	end)
+
+	print("[InsanityService] Started.")
 end
 
 return InsanityService

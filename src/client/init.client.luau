@@ -21,76 +21,59 @@ local function requireController(name, optional)
 	return result
 end
 
-local GraphicsController = requireController("GraphicsController")
-local StairRenderController = requireController("StairRenderController")
-local UIController = requireController("UIController")
-local AtmosphereController = requireController("AtmosphereController")
-local DeathEffectsController = requireController("DeathEffectsController")
-local DebugFlyController = requireController("DebugFlyController")
-local InsanityBarController = requireController("InsanityBarController")
-local InsanityEffectsController = requireController("InsanityEffectsController")
-local StaminaController = requireController("StaminaController")
-local MusicController = requireController("MusicController")
-local MusicPlayerController = requireController("MusicPlayerController")
-local ActionButtonsController = requireController("ActionButtonsController", true)
-local AnimationController = requireController("AnimationController")
-local TowerSandstormController = requireController("TowerSandstormController", true)
+local function startController(name, optional, ...)
+	local controller = requireController(name, optional)
 
+	if not controller then
+		return nil
+	end
 
-if GraphicsController and GraphicsController.Start then
-	GraphicsController:Start()
+	if type(controller.Start) ~= "function" then
+		warn("[Client] Controller has no Start function:", name)
+		return controller
+	end
+
+	local args = { ... }
+
+	local success, err = pcall(function()
+		controller:Start(table.unpack(args))
+	end)
+
+	if not success then
+		warn("[Client] Failed to start controller:", name, err)
+	end
+
+	return controller
 end
 
-if AtmosphereController and AtmosphereController.Start then
-	AtmosphereController:Start()
+local GraphicsController = startController("GraphicsController", true)
+
+startController("AtmosphereController", true)
+startController("TowerSandstormController", true)
+startController("DeathEffectsController", true)
+startController("DebugFlyController", true)
+startController("InsanityBarController", true)
+startController("InsanityEffectsController", true)
+startController("StaminaController", true)
+
+local MusicController = startController("MusicController", true)
+
+if MusicController then
+	startController("MusicPlayerController", true, MusicController)
 end
 
-if TowerSandstormController and TowerSandstormController.Start then
-	TowerSandstormController:Start()
+startController("SinMenuController", true)
+startController("SideButtonsController", true)
+startController("PushButtonController", true)
+startController("ActionButtonsController", true)
+startController("AnimationController", true)
+
+if GraphicsController then
+	startController("StairRenderController", true, GraphicsController)
+	startController("UIController", true, GraphicsController)
+else
+	startController("StairRenderController", true)
+	startController("UIController", true)
 end
 
-if DeathEffectsController and DeathEffectsController.Start then
-	DeathEffectsController:Start()
-end
-
-if DebugFlyController and DebugFlyController.Start then
-	DebugFlyController:Start()
-end
-
-if InsanityBarController and InsanityBarController.Start then
-	InsanityBarController:Start()
-end
-
-if InsanityEffectsController and InsanityEffectsController.Start then
-	InsanityEffectsController:Start()
-end
-
-if StaminaController and StaminaController.Start then
-	StaminaController:Start()
-end
-
-if MusicController and MusicController.Start then
-	MusicController:Start()
-end
-
-if MusicPlayerController and MusicPlayerController.Start then
-	MusicPlayerController:Start(MusicController)
-end
-
-if ActionButtonsController and ActionButtonsController.Start then
-	ActionButtonsController:Start()
-end
-
-if AnimationController and AnimationController.Start then
-	AnimationController:Start()
-end
-
-if StairRenderController and StairRenderController.Start and GraphicsController then
-	StairRenderController:Start(GraphicsController)
-end
-
-if UIController and UIController.Start and GraphicsController then
-	UIController:Start(GraphicsController)
-end
-
-print("[Client] ReZero-Test started")
+print("[Client] ReZero-Test started.")

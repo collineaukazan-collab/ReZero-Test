@@ -1,12 +1,37 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local LeaderboardService = {}
 
-local function getOrCreateIntValue(parent, name)
+local syncing = {}
+
+local function getCurrencyName()
+	return GameConfig.CurrencyName or "Auracoins"
+end
+
+local function asNumber(value)
+	return math.floor(tonumber(value) or 0)
+end
+
+local function getOrCreateLeaderstats(player)
+	local leaderstats = player:FindFirstChild("leaderstats")
+
+	if not leaderstats then
+		leaderstats = Instance.new("Folder")
+		leaderstats.Name = "leaderstats"
+		leaderstats.Parent = player
+	end
+
+	return leaderstats
+end
+
+local function getOrCreateNumberValue(parent, name)
 	local value = parent:FindFirstChild(name)
 
 	if not value then
-		value = Instance.new("IntValue")
+		value = Instance.new("NumberValue")
 		value.Name = name
 		value.Parent = parent
 	end
@@ -14,58 +39,107 @@ local function getOrCreateIntValue(parent, name)
 	return value
 end
 
-local function waitForProfile(player, playerDataService)
-	for _ = 1, 50 do
-		local profile = playerDataService:Get(player)
-		if profile then
-			return profile
-		end
-
-		task.wait(0.1)
+local function syncCurrency(player)
+	if syncing[player] then
+		return
 	end
 
-	return playerDataService:Get(player)
+	syncing[player] = true
+
+	local auracoins = player:GetAttribute("Auracoins")
+	local oldMoney = player:GetAttribute("Money")
+
+	if auracoins == nil and oldMoney ~= nil then
+		auracoins = oldMoney
+	end
+
+	auracoins = asNumber(auracoins or 0)
+
+	player:SetAttribute("Auracoins", auracoins)
+	player:SetAttribute("Money", auracoins)
+
+	syncing[player] = false
 end
 
-local function setupLeaderboard(player, playerDataService)
-	waitForProfile(player, playerDataService)
+local function updateLeaderboard(player)
+	syncCurrency(player)
 
-	local leaderstats = player:FindFirstChild("leaderstats")
-	if not leaderstats then
-		leaderstats = Instance.new("Folder")
-		leaderstats.Name = "leaderstats"
-		leaderstats.Parent = player
-	end
+	local leaderstats = getOrCreateLeaderstats(player)
 
-	local studsValue = getOrCreateIntValue(leaderstats, "Studs")
-	local bestValue = getOrCreateIntValue(leaderstats, "Best")
-	local moneyValue = getOrCreateIntValue(leaderstats, "Money")
+	local auracoinsValue = getOrCreateNumberValue(leaderstats, "Auracoins")
+	local bestFloorValue = getOrCreateNumberValue(leaderstats, "BestFloor")
+	local bestStudsValue = getOrCreateNumberValue(leaderstats, "BestStuds")
+	local shardsValue = getOrCreateNumberValue(leaderstats, "SinShards")
 
-	local function sync()
-		studsValue.Value = math.floor(player:GetAttribute("CurrentStuds") or 0)
-		bestValue.Value = math.floor(player:GetAttribute("BestStuds") or 0)
-		moneyValue.Value = math.floor(player:GetAttribute("Money") or 0)
-	end
+	local auracoins = asNumber(player:GetAttribute("Auracoins") or player:GetAttribute("Money") or 0)
 
-	sync()
+	local bestStuds = math.max(
+		asNumber(player:GetAttribute("BestStuds") or 0),
+		asNumber(player:GetAttribute("RunBestStuds") or 0)
+	)
 
-	player:GetAttributeChangedSignal("CurrentStuds"):Connect(sync)
-	player:GetAttributeChangedSignal("BestStuds"):Connect(sync)
-	player:GetAttributeChangedSignal("Money"):Connect(sync)
+	local bestFloor = math.max(
+		asNumber(player:GetAttribute("BestFloor") or 0),
+		asNumber(player:GetAttribute("CurrentFloor") or 0)
+	)
+
+	player:SetAttribute("BestStuds", bestStuds)
+	player:SetAttribute("BestFloor", bestFloor)
+
+	auracoinsValue.Value = auracoins
+	bestFloorValue.Value = bestFloor
+	bestStudsValue.Value = bestStuds
+	shardsValue.Value = asNumber(player:GetAttribute("SinShards") or 0)
 end
 
-function LeaderboardService:Start(playerDataService)
-	Players.PlayerAdded:Connect(function(player)
-		task.spawn(function()
-			setupLeaderboard(player, playerDataService)
+local function setupPlayer(player)
+	if player:GetAttribute("Auracoins") == nil then
+		player:SetAttribute("Auracoins", player:GetAttribute("Money") or 0)
+	end
+
+	if player:GetAttribute("Money") == nil then
+		player:SetAttribute("Money", player:GetAttribute("Auracoins") or 0)
+	end
+
+	if player:GetAttribute("BestStuds") == nil then
+		player:SetAttribute("BestStuds", 0)
+	end
+
+	if player:GetAttribute("BestFloor") == nil then
+		player:SetAttribute("BestFloor", 0)
+	end
+
+	updateLeaderboard(player)
+
+	local watchedAttributes = {
+		"Auracoins",
+		"Money",
+		"BestStuds",
+		"BestFloor",
+		"RunBestStuds",
+		"CurrentFloor",
+		"SinShards",
+	}
+
+	for _, attributeName in ipairs(watchedAttributes) do
+		player:GetAttributeChangedSignal(attributeName):Connect(function()
+			updateLeaderboard(player)
 		end)
+	end
+end
+
+function LeaderboardService:Start()
+	Players.PlayerAdded:Connect(setupPlayer)
+
+	Players.PlayerRemoving:Connect(function(player)
+		syncing[player] = nil
 	end)
 
 	for _, player in ipairs(Players:GetPlayers()) do
-		task.spawn(function()
-			setupLeaderboard(player, playerDataService)
-		end)
+		setupPlayer(player)
 	end
+
+	print("[LeaderboardService] Started. Currency =", getCurrencyName())
 end
 
 return LeaderboardService

@@ -12,7 +12,7 @@ local function getSandConfig()
 end
 
 local function smoothStep(edge0, edge1, value)
-	local t = math.clamp((value - edge0) / (edge1 - edge0), 0, 1)
+	local t = math.clamp((value - edge0) / math.max(edge1 - edge0, 0.001), 0, 1)
 	return t * t * (3 - 2 * t)
 end
 
@@ -47,16 +47,12 @@ local function getSandHeight(x, z)
 		56.78
 	)
 
-	-- Le bruit peut être positif ou négatif :
-	-- positif = petite bosse
-	-- négatif = petit creux
 	local height = baseY
 		+ bigNoise * reliefHeight
 		+ smallNoise * reliefHeight * 0.32
 
 	local currentXZ = Vector3.new(x, 0, z)
 
-	-- Zone plus plate autour de la tour.
 	do
 		local stairXZ = Vector3.new(center.X, 0, center.Z)
 		local distance = (currentXZ - stairXZ).Magnitude
@@ -68,7 +64,6 @@ local function getSandHeight(x, z)
 		end
 	end
 
-	-- Zone plate autour du spawn.
 	do
 		local spawnXZ = getSpawnXZ()
 		local distance = (currentXZ - spawnXZ).Magnitude
@@ -110,20 +105,11 @@ local function clearSandTerrainArea()
 	local baseY = config.BaseY or 0
 	local bottomY = config.BottomY or -4
 
-	local clearHeight = 14
-	local clearCFrame = CFrame.new(
-		center.X,
-		(bottomY + baseY) / 2,
-		center.Z
+	terrain:FillBlock(
+		CFrame.new(center.X, (bottomY + baseY) / 2, center.Z),
+		Vector3.new(size + 20, 16, size + 20),
+		Enum.Material.Air
 	)
-
-	local clearSize = Vector3.new(
-		size + 20,
-		clearHeight,
-		size + 20
-	)
-
-	terrain:FillBlock(clearCFrame, clearSize, Enum.Material.Air)
 end
 
 local function generateTowerSandFloor()
@@ -152,19 +138,11 @@ local function generateTowerSandFloor()
 			local topY = getSandHeight(worldX, worldZ)
 			local height = math.max(1.5, topY - bottomY)
 
-			local cframe = CFrame.new(
-				worldX,
-				bottomY + height / 2,
-				worldZ
+			terrain:FillBlock(
+				CFrame.new(worldX, bottomY + height / 2, worldZ),
+				Vector3.new(step + 0.5, height, step + 0.5),
+				Enum.Material.Sand
 			)
-
-			local blockSize = Vector3.new(
-				step + 0.5,
-				height,
-				step + 0.5
-			)
-
-			terrain:FillBlock(cframe, blockSize, Enum.Material.Sand)
 		end
 
 		task.wait()
@@ -177,12 +155,12 @@ local function getSpawnPosition()
 	local config = getSandConfig()
 	local spawnXZ = getSpawnXZ()
 
-	local y = getSandHeight(spawnXZ.X, spawnXZ.Z)
-	local playerYOffset = config.PlayerSpawnYOffset or 5
+	local groundY = getSandHeight(spawnXZ.X, spawnXZ.Z)
+	local playerYOffset = config.PlayerSpawnYOffset or 3.1
 
 	return Vector3.new(
 		spawnXZ.X,
-		y + playerYOffset,
+		groundY + playerYOffset,
 		spawnXZ.Z
 	)
 end
@@ -202,6 +180,7 @@ local function getOrCreateSpawnLocation()
 end
 
 local function setupSpawnLocation()
+	local config = getSandConfig()
 	local spawnPosition = getSpawnPosition()
 	local spawnLocation = getOrCreateSpawnLocation()
 
@@ -216,7 +195,7 @@ local function setupSpawnLocation()
 
 	spawnLocation.Position = Vector3.new(
 		spawnPosition.X,
-		spawnPosition.Y - 3,
+		(config.BaseY or 0) + 0.25,
 		spawnPosition.Z
 	)
 
@@ -243,6 +222,8 @@ end
 
 local function teleportCharacterToSpawn(character)
 	local root = character:WaitForChild("HumanoidRootPart", 10)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+
 	if not root then
 		return
 	end
@@ -255,6 +236,11 @@ local function teleportCharacterToSpawn(character)
 	root.CFrame = CFrame.new(spawnPosition)
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.AssemblyAngularVelocity = Vector3.zero
+
+	if humanoid then
+		humanoid.PlatformStand = false
+		humanoid:ChangeState(Enum.HumanoidStateType.Running)
+	end
 end
 
 function WorldService:Start()

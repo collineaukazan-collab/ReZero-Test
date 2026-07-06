@@ -1,72 +1,118 @@
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local SoundService = game:GetService("SoundService")
-local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
-local NumberUtil = require(ReplicatedStorage.Shared.Utils.NumberUtil)
+
+local NumberUtil = nil
+
+pcall(function()
+	NumberUtil = require(ReplicatedStorage.Shared.Utils.NumberUtil)
+end)
 
 local UIController = {}
 
 local localPlayer = Players.LocalPlayer
 
-local fps = 0
-local frameCount = 0
-local frameTimer = 0
+local screenGui = nil
+local statsFrame = nil
+local floorLabel = nil
+local studsLabel = nil
+local currencyLabel = nil
+local fpsLabel = nil
 
-local audioConfig = GameConfig.Audio or {}
+local settingsFrame = nil
+local settingsOpen = false
 
-local musicVolume = audioConfig.MusicVolume or GameConfig.DefaultMusicVolume or 0.6
-local sfxVolume = audioConfig.SfxVolume or GameConfig.DefaultSfxVolume or 0.8
-local impactMarksEnabled = GameConfig.DefaultImpactMarksEnabled
+local graphicsController = nil
 
-local function getOrCreateSoundGroup(name, volume)
+local fpsTimer = 0
+local fpsFrames = 0
+local currentFps = 0
+
+local musicGroup = nil
+local sfxGroup = nil
+
+local function formatInteger(value)
+	value = math.floor(tonumber(value) or 0)
+
+	if NumberUtil and NumberUtil.formatInteger then
+		return NumberUtil.formatInteger(value)
+	end
+
+	local text = tostring(value)
+	local result = ""
+
+	while #text > 3 do
+		result = "," .. string.sub(text, -3) .. result
+		text = string.sub(text, 1, #text - 3)
+	end
+
+	return text .. result
+end
+
+local function getAudioConfig()
+	return GameConfig.Audio or {}
+end
+
+local function getCurrencyValue()
+	return localPlayer:GetAttribute("Auracoins")
+		or localPlayer:GetAttribute("Money")
+		or 0
+end
+
+local function getCurrencyName()
+	return GameConfig.CurrencyName or "Auracoins"
+end
+
+local function getCurrencyColor()
+	return GameConfig.CurrencyColor or Color3.fromRGB(255, 221, 65)
+end
+
+local function getOrCreateSoundGroup(name, defaultVolume)
 	local group = SoundService:FindFirstChild(name)
 
 	if not group then
 		group = Instance.new("SoundGroup")
 		group.Name = name
+		group.Volume = defaultVolume
 		group.Parent = SoundService
 	end
 
-	group.Volume = volume
 	return group
 end
 
-local musicGroup = getOrCreateSoundGroup("Music", musicVolume)
-local sfxGroup = getOrCreateSoundGroup("SFX", sfxVolume)
-
-local function createFrame(parent, name, size, position)
-	local frame = Instance.new("Frame")
-	frame.Name = name
-	frame.Size = size
-	frame.Position = position
-	frame.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
-	frame.BackgroundTransparency = 0.04
-	frame.BorderSizePixel = 0
-	frame.Parent = parent
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(55, 55, 70)
-	stroke.Thickness = 1
-	stroke.Transparency = 0.25
-	stroke.Parent = frame
-
-	return frame
+local function makeCorner(parent, radius)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius)
+	corner.Parent = parent
+	return corner
 end
 
-local function createText(parent, name, text, size, position, textSize)
+local function makeStroke(parent, color, thickness, transparency)
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = color
+	stroke.Thickness = thickness or 1
+	stroke.Transparency = transparency or 0
+	stroke.Parent = parent
+	return stroke
+end
+
+local function createText(parent, name, text, size, position, textSize, color, font)
 	local label = Instance.new("TextLabel")
 	label.Name = name
 	label.BackgroundTransparency = 1
 	label.Size = size
 	label.Position = position
-	label.Font = Enum.Font.GothamMedium
-	label.TextSize = textSize or 15
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.TextColor3 = Color3.fromRGB(225, 225, 235)
 	label.Text = text
+	label.TextColor3 = color or Color3.fromRGB(255, 255, 255)
+	label.TextSize = textSize or 16
+	label.Font = font or Enum.Font.GothamBold
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextYAlignment = Enum.TextYAlignment.Center
+	label.TextWrapped = true
 	label.Parent = parent
 
 	return label
@@ -77,67 +123,85 @@ local function createButton(parent, name, text, size, position)
 	button.Name = name
 	button.Size = size
 	button.Position = position
-	button.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+	button.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+	button.BackgroundTransparency = 0.08
 	button.BorderSizePixel = 0
-	button.Font = Enum.Font.GothamMedium
-	button.TextSize = 15
-	button.TextColor3 = Color3.fromRGB(235, 235, 245)
 	button.Text = text
+	button.TextColor3 = Color3.fromRGB(255, 255, 255)
+	button.TextSize = 16
+	button.Font = Enum.Font.GothamBlack
 	button.AutoButtonColor = true
 	button.Parent = parent
 
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(70, 70, 90)
-	stroke.Thickness = 1
-	stroke.Transparency = 0.35
-	stroke.Parent = button
+	makeCorner(button, 8)
+	makeStroke(button, Color3.fromRGB(255, 255, 255), 1, 0.45)
 
 	return button
+end
+
+local function setMenuOpen(value)
+	local playerGui = localPlayer:WaitForChild("PlayerGui")
+	playerGui:SetAttribute("MenuOpen", value == true)
 end
 
 local function createSlider(parent, name, title, position, defaultValue, callback)
 	local container = Instance.new("Frame")
 	container.Name = name
-	container.Size = UDim2.new(1, -36, 0, 56)
 	container.Position = position
+	container.Size = UDim2.fromOffset(330, 48)
 	container.BackgroundTransparency = 1
 	container.Parent = parent
 
-	local label = createText(container, "Label", title .. ": " .. math.floor(defaultValue * 100) .. "%", UDim2.new(1, 0, 0, 22), UDim2.new(0, 0, 0, 0), 14)
+	local label = createText(
+		container,
+		"Label",
+		title .. " : " .. tostring(math.floor(defaultValue * 100)) .. "%",
+		UDim2.new(1, 0, 0, 18),
+		UDim2.fromOffset(0, 0),
+		15,
+		Color3.fromRGB(235, 235, 245),
+		Enum.Font.GothamBold
+	)
 
 	local bar = Instance.new("Frame")
 	bar.Name = "Bar"
+	bar.Position = UDim2.fromOffset(0, 28)
 	bar.Size = UDim2.new(1, 0, 0, 6)
-	bar.Position = UDim2.new(0, 0, 0, 36)
-	bar.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+	bar.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
 	bar.BorderSizePixel = 0
 	bar.Parent = container
+
+	makeCorner(bar, 12)
 
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
 	fill.Size = UDim2.new(defaultValue, 0, 1, 0)
-	fill.BackgroundColor3 = Color3.fromRGB(130, 130, 170)
+	fill.BackgroundColor3 = Color3.fromRGB(150, 75, 255)
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
 
+	makeCorner(fill, 12)
+
 	local knob = Instance.new("Frame")
 	knob.Name = "Knob"
-	knob.Size = UDim2.new(0, 14, 0, 14)
+	knob.Size = UDim2.fromOffset(14, 14)
 	knob.Position = UDim2.new(defaultValue, -7, 0.5, -7)
-	knob.BackgroundColor3 = Color3.fromRGB(235, 235, 245)
+	knob.BackgroundColor3 = Color3.fromRGB(245, 245, 255)
 	knob.BorderSizePixel = 0
 	knob.Parent = bar
+
+	makeCorner(knob, 50)
 
 	local dragging = false
 
 	local function setValueFromX(x)
-		local value = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+		local alpha = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
 
-		fill.Size = UDim2.new(value, 0, 1, 0)
-		knob.Position = UDim2.new(value, -7, 0.5, -7)
-		label.Text = title .. ": " .. math.floor(value * 100) .. "%"
+		fill.Size = UDim2.new(alpha, 0, 1, 0)
+		knob.Position = UDim2.new(alpha, -7, 0.5, -7)
+		label.Text = title .. " : " .. tostring(math.floor(alpha * 100)) .. "%"
 
-		callback(value)
+		callback(alpha)
 	end
 
 	bar.InputBegan:Connect(function(input)
@@ -150,217 +214,332 @@ local function createSlider(parent, name, title, position, defaultValue, callbac
 	knob.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = true
+			setValueFromX(input.Position.X)
 		end
 	end)
 
-	UserInputService.InputChanged:Connect(function(input)
+	game:GetService("UserInputService").InputChanged:Connect(function(input)
 		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
 			setValueFromX(input.Position.X)
 		end
 	end)
 
-	UserInputService.InputEnded:Connect(function(input)
+	game:GetService("UserInputService").InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = false
 		end
 	end)
 
-	callback(defaultValue)
+	return container
 end
 
-local function getLeaderstatValue(name)
-	local leaderstats = localPlayer:FindFirstChild("leaderstats")
-	if not leaderstats then
-		return 0
+local function updateStats()
+	local floor = math.floor(localPlayer:GetAttribute("CurrentFloor") or 0)
+	local studs = math.floor(localPlayer:GetAttribute("CurrentStuds") or 0)
+	local auracoins = getCurrencyValue()
+
+	if floorLabel then
+		floorLabel.Text = "Floor : " .. formatInteger(floor)
 	end
 
-	local value = leaderstats:FindFirstChild(name)
-	if not value then
-		return 0
+	if studsLabel then
+		studsLabel.Text = "Height : " .. formatInteger(studs) .. " studs"
 	end
 
-	return value.Value
+	if currencyLabel then
+		currencyLabel.Text = getCurrencyName() .. " : " .. formatInteger(auracoins)
+		currencyLabel.TextColor3 = getCurrencyColor()
+	end
+
+	if fpsLabel then
+		fpsLabel.Text = "FPS : " .. tostring(currentFps)
+	end
 end
 
-local function getPing()
-	local success, pingSeconds = pcall(function()
-		return localPlayer:GetNetworkPing()
+local function setSettingsVisible(value)
+	if not settingsFrame then
+		return
+	end
+
+	settingsOpen = value == true
+	setMenuOpen(settingsOpen)
+
+	if settingsOpen then
+		settingsFrame.Visible = true
+		settingsFrame.Position = UDim2.new(0.5, 0, 0.54, 0)
+
+		TweenService:Create(
+			settingsFrame,
+			TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{
+				Position = UDim2.new(0.5, 0, 0.5, 0),
+				BackgroundTransparency = 0.08,
+			}
+		):Play()
+	else
+		local tween = TweenService:Create(
+			settingsFrame,
+			TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{
+				Position = UDim2.new(0.5, 0, 0.57, 0),
+				BackgroundTransparency = 0.25,
+			}
+		)
+
+		tween:Play()
+
+		task.delay(0.18, function()
+			if settingsFrame and not settingsOpen then
+				settingsFrame.Visible = false
+			end
+		end)
+	end
+end
+
+local function toggleSettings()
+	setSettingsVisible(not settingsOpen)
+end
+
+local function createStatsGui()
+	statsFrame = Instance.new("Frame")
+	statsFrame.Name = "StatsFrame"
+	statsFrame.Position = UDim2.fromOffset(16, 14)
+	statsFrame.Size = UDim2.fromOffset(290, 104)
+	statsFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+	statsFrame.BackgroundTransparency = 0.25
+	statsFrame.BorderSizePixel = 0
+	statsFrame.Parent = screenGui
+
+	makeCorner(statsFrame, 12)
+	makeStroke(statsFrame, Color3.fromRGB(255, 255, 255), 1, 0.65)
+
+	fpsLabel = createText(
+		statsFrame,
+		"FpsLabel",
+		"FPS : 0",
+		UDim2.new(1, -20, 0, 24),
+		UDim2.fromOffset(10, 6),
+		15,
+		Color3.fromRGB(210, 210, 220),
+		Enum.Font.GothamBold
+	)
+
+	floorLabel = createText(
+		statsFrame,
+		"FloorLabel",
+		"Floor : 0",
+		UDim2.new(1, -20, 0, 24),
+		UDim2.fromOffset(10, 32),
+		17,
+		Color3.fromRGB(255, 255, 255),
+		Enum.Font.GothamBlack
+	)
+
+	studsLabel = createText(
+		statsFrame,
+		"StudsLabel",
+		"Height : 0 studs",
+		UDim2.new(1, -20, 0, 24),
+		UDim2.fromOffset(10, 58),
+		15,
+		Color3.fromRGB(220, 220, 235),
+		Enum.Font.GothamBold
+	)
+
+	currencyLabel = createText(
+		statsFrame,
+		"CurrencyLabel",
+		getCurrencyName() .. " : 0",
+		UDim2.new(1, -20, 0, 24),
+		UDim2.fromOffset(10, 80),
+		15,
+		getCurrencyColor(),
+		Enum.Font.GothamBlack
+	)
+end
+
+local function createQualityButton(parent, name, qualityName, position)
+	local button = createButton(
+		parent,
+		name,
+		qualityName,
+		UDim2.fromOffset(96, 40),
+		position
+	)
+
+	button.Activated:Connect(function()
+		if graphicsController and graphicsController.SetQuality then
+			graphicsController:SetQuality(qualityName)
+		elseif graphicsController and graphicsController.setQuality then
+			graphicsController:setQuality(qualityName)
+		end
+
+		localPlayer:SetAttribute("GraphicsQuality", qualityName)
 	end)
 
-	if not success or type(pingSeconds) ~= "number" then
-		return "N/A"
-	end
-
-	return tostring(math.floor(pingSeconds * 2000)) .. " ms"
+	return button
 end
 
-function UIController:Start(graphicsController)
+local function createSettingsGui()
+	local audioConfig = getAudioConfig()
+
+	musicGroup = getOrCreateSoundGroup(
+		"Music",
+		audioConfig.MusicVolume or GameConfig.DefaultMusicVolume or 0.6
+	)
+
+	sfxGroup = getOrCreateSoundGroup(
+		"SFX",
+		audioConfig.SfxVolume or GameConfig.DefaultSfxVolume or 0.8
+	)
+
+	settingsFrame = Instance.new("Frame")
+	settingsFrame.Name = "SettingsFrame"
+	settingsFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	settingsFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+	settingsFrame.Size = UDim2.fromOffset(460, 420)
+	settingsFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 13)
+	settingsFrame.BackgroundTransparency = 0.08
+	settingsFrame.BorderSizePixel = 0
+	settingsFrame.Visible = false
+	settingsFrame.Parent = screenGui
+
+	makeCorner(settingsFrame, 16)
+	makeStroke(settingsFrame, Color3.fromRGB(255, 255, 255), 2, 0.25)
+
+	createText(
+		settingsFrame,
+		"Title",
+		"SETTINGS",
+		UDim2.new(1, -30, 0, 46),
+		UDim2.fromOffset(18, 12),
+		28,
+		Color3.fromRGB(255, 255, 255),
+		Enum.Font.GothamBlack
+	)
+
+	local exitButton = createButton(
+		settingsFrame,
+		"ExitButton",
+		"Exit",
+		UDim2.fromOffset(90, 36),
+		UDim2.new(1, -108, 0, 14)
+	)
+
+	exitButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	exitButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+	exitButton.Activated:Connect(function()
+		setSettingsVisible(false)
+	end)
+
+	createText(
+		settingsFrame,
+		"QualityTitle",
+		"Graphics Quality",
+		UDim2.fromOffset(240, 28),
+		UDim2.fromOffset(22, 78),
+		18,
+		Color3.fromRGB(235, 235, 245),
+		Enum.Font.GothamBlack
+	)
+
+	createQualityButton(settingsFrame, "LowQuality", "Low", UDim2.fromOffset(22, 112))
+	createQualityButton(settingsFrame, "MediumQuality", "Medium", UDim2.fromOffset(132, 112))
+	createQualityButton(settingsFrame, "HighQuality", "High", UDim2.fromOffset(262, 112))
+
+	createSlider(
+		settingsFrame,
+		"MusicSlider",
+		"Music",
+		UDim2.fromOffset(22, 176),
+		musicGroup.Volume,
+		function(value)
+			musicGroup.Volume = value
+		end
+	)
+
+	createSlider(
+		settingsFrame,
+		"SfxSlider",
+		"FX",
+		UDim2.fromOffset(22, 240),
+		sfxGroup.Volume,
+		function(value)
+			sfxGroup.Volume = value
+		end
+	)
+
+	local impactButton = createButton(
+		settingsFrame,
+		"ImpactMarksButton",
+		"Impact Marks : ON",
+		UDim2.fromOffset(190, 42),
+		UDim2.fromOffset(22, 318)
+	)
+
+	if localPlayer:GetAttribute("ImpactMarksEnabled") == nil then
+		localPlayer:SetAttribute("ImpactMarksEnabled", GameConfig.DefaultImpactMarksEnabled ~= false)
+	end
+
+	local function refreshImpactButton()
+		local enabled = localPlayer:GetAttribute("ImpactMarksEnabled") ~= false
+		impactButton.Text = enabled and "Impact Marks : ON" or "Impact Marks : OFF"
+	end
+
+	refreshImpactButton()
+
+	impactButton.Activated:Connect(function()
+		local current = localPlayer:GetAttribute("ImpactMarksEnabled") ~= false
+		localPlayer:SetAttribute("ImpactMarksEnabled", not current)
+		refreshImpactButton()
+	end)
+end
+
+local function setupMenuSignal()
 	local playerGui = localPlayer:WaitForChild("PlayerGui")
 
-	local oldGui = playerGui:FindFirstChild("ReZeroHUD")
-	if oldGui then
-		oldGui:Destroy()
+	playerGui:GetAttributeChangedSignal("SettingsMenuSignal"):Connect(function()
+		toggleSettings()
+	end)
+end
+
+function UIController:Start(injectedGraphicsController)
+	graphicsController = injectedGraphicsController
+
+	local playerGui = localPlayer:WaitForChild("PlayerGui")
+
+	local old = playerGui:FindFirstChild("MainHudGui")
+	if old then
+		old:Destroy()
 	end
 
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "ReZeroHUD"
-	screenGui.ResetOnSpawn = false
+	screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "MainHudGui"
 	screenGui.IgnoreGuiInset = true
+	screenGui.ResetOnSpawn = false
+	screenGui.DisplayOrder = 100
 	screenGui.Parent = playerGui
 
-	local statsFrame = createFrame(screenGui, "StatsFrame", UDim2.new(0, 255, 0, 142), UDim2.new(0, 16, 0, 16))
+	createStatsGui()
+	createSettingsGui()
+	setupMenuSignal()
 
-	local insanityFrame = createFrame(
-	screenGui,
-	"InsanityFrame",
-	UDim2.new(0, 420, 0, 44),
-	UDim2.new(0.5, -210, 0, 18)
-	)
+	RunService.RenderStepped:Connect(function(dt)
+		fpsFrames += 1
+		fpsTimer += dt
 
-	insanityFrame.Visible = false
+		if fpsTimer >= 0.5 then
+			currentFps = math.floor(fpsFrames / fpsTimer + 0.5)
+			fpsFrames = 0
+			fpsTimer = 0
+		end
 
-	local insanityLabel = createText(
-		insanityFrame,
-		"InsanityLabel",
-		"INSANITY",
-		UDim2.new(0, 105, 1, 0),
-		UDim2.new(0, 12, 0, 0),
-		14
-	)
-
-	local insanityBarBack = Instance.new("Frame")
-	insanityBarBack.Name = "BarBack"
-	insanityBarBack.Size = UDim2.new(1, -135, 0, 10)
-	insanityBarBack.Position = UDim2.new(0, 118, 0.5, -5)
-	insanityBarBack.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
-	insanityBarBack.BorderSizePixel = 0
-	insanityBarBack.Parent = insanityFrame
-
-	local insanityBarFill = Instance.new("Frame")
-	insanityBarFill.Name = "BarFill"
-	insanityBarFill.Size = UDim2.new(0, 0, 1, 0)
-	insanityBarFill.BackgroundColor3 = Color3.fromRGB(130, 20, 45)
-	insanityBarFill.BorderSizePixel = 0
-	insanityBarFill.Parent = insanityBarBack
-
-
-	local padding = Instance.new("UIPadding")
-	padding.PaddingTop = UDim.new(0, 12)
-	padding.PaddingLeft = UDim.new(0, 14)
-	padding.Parent = statsFrame
-
-	local studsLabel = createText(statsFrame, "StudsLabel", "Studs: 0", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 0), 16)
-	local floorLabel = createText(statsFrame, "FloorLabel", "Floor: 0", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 26), 16)
-	local bestLabel = createText(statsFrame, "BestLabel", "Best: 0", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 52), 16)
-	local moneyLabel = createText(statsFrame, "MoneyLabel", "Money: 0", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 78), 16)
-	local rewardLabel = createText(statsFrame, "RewardLabel", "Reward: +0", UDim2.new(1, -20, 0, 22), UDim2.new(0, 0, 0, 104), 16)
-
-	local perfFrame = createFrame(screenGui, "PerformanceFrame", UDim2.new(0, 160, 0, 70), UDim2.new(1, -176, 0, 16))
-	local fpsLabel = createText(perfFrame, "FpsLabel", "FPS: ...", UDim2.new(1, -20, 0, 22), UDim2.new(0, 12, 0, 12), 14)
-	local pingLabel = createText(perfFrame, "PingLabel", "Ping: ...", UDim2.new(1, -20, 0, 22), UDim2.new(0, 12, 0, 38), 14)
-
-	local settingsButton = createButton(screenGui, "SettingsButton", "SETTINGS", UDim2.new(0, 120, 0, 38), UDim2.new(1, -136, 0, 96))
-
-	local menuFrame = createFrame(screenGui, "SettingsMenu", UDim2.new(0, 390, 0, 360), UDim2.new(0.5, -195, 0.5, -180))
-	menuFrame.Visible = false
-
-	createText(menuFrame, "Title", "PARAMÈTRES", UDim2.new(1, -50, 0, 30), UDim2.new(0, 18, 0, 16), 20)
-
-	local closeButton = createButton(menuFrame, "CloseButton", "X", UDim2.new(0, 36, 0, 32), UDim2.new(1, -50, 0, 14))
-	local qualityButton = createButton(menuFrame, "QualityButton", "Graphiques: " .. graphicsController:GetQuality(), UDim2.new(1, -36, 0, 42), UDim2.new(0, 18, 0, 62))
-
-	createSlider(menuFrame, "MusicSlider", "Musique", UDim2.new(0, 18, 0, 122), musicVolume, function(value)
-		musicVolume = value
-		musicGroup.Volume = value
-	end)
-
-	createSlider(menuFrame, "SfxSlider", "Effets", UDim2.new(0, 18, 0, 192), sfxVolume, function(value)
-		sfxVolume = value
-		sfxGroup.Volume = value
-	end)
-
-	local impactButton = createButton(menuFrame, "ImpactMarksButton", "Marques d'impact: ON", UDim2.new(1, -36, 0, 42), UDim2.new(0, 18, 0, 270))
-
-	local function updateStats()
-		local currentStuds = math.floor(localPlayer:GetAttribute("CurrentStuds") or getLeaderstatValue("Studs"))
-		local currentFloor = math.floor(localPlayer:GetAttribute("CurrentFloor") or (currentStuds / GameConfig.StairSegmentHeight))
-		local bestStuds = math.floor(localPlayer:GetAttribute("BestStuds") or getLeaderstatValue("Best"))
-		local money = math.floor(localPlayer:GetAttribute("Money") or getLeaderstatValue("Money"))
-		local lastReward = math.floor(localPlayer:GetAttribute("LastReward") or 0)
-
-		studsLabel.Text = "Studs: " .. NumberUtil.formatInteger(currentStuds)
-		floorLabel.Text = "Floor: " .. NumberUtil.formatInteger(currentFloor)
-		bestLabel.Text = "Best: " .. NumberUtil.formatInteger(bestStuds)
-		moneyLabel.Text = "Money: " .. NumberUtil.formatInteger(money)
-		rewardLabel.Text = "Reward: +" .. NumberUtil.formatInteger(lastReward)
-		qualityButton.Text = "Graphiques: " .. graphicsController:GetQuality()
-
-	end
-
-	settingsButton.Activated:Connect(function()
-		menuFrame.Visible = not menuFrame.Visible
-	end)
-
-	closeButton.Activated:Connect(function()
-		menuFrame.Visible = false
-	end)
-
-	qualityButton.Activated:Connect(function()
-		graphicsController:CycleQuality()
 		updateStats()
 	end)
 
-	impactButton.Activated:Connect(function()
-		impactMarksEnabled = not impactMarksEnabled
-
-		localPlayer:SetAttribute("ImpactMarksEnabled", impactMarksEnabled)
-
-		local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-		local remote = remotes and remotes:FindFirstChild("SetImpactMarksEnabled")
-
-		if remote then
-			remote:FireServer(impactMarksEnabled)
-		end
-
-		impactButton.Text = impactMarksEnabled
-			and "Impacts: ON"
-			or "Impacts: OFF"
-	end)
-
-	graphicsController.Changed:Connect(updateStats)
-
-	for _, attributeName in ipairs({
-		"CurrentStuds",
-		"CurrentFloor",
-		"BestStuds",
-		"Money",
-		"LastReward",
-	}) do
-		localPlayer:GetAttributeChangedSignal(attributeName):Connect(updateStats)
-	end
-
-	RunService.RenderStepped:Connect(function(deltaTime)
-		frameCount += 1
-		frameTimer += deltaTime
-
-		if frameTimer >= 0.5 then
-			fps = math.floor(frameCount / frameTimer)
-			frameCount = 0
-			frameTimer = 0
-
-			fpsLabel.Text = "FPS: " .. fps
-			pingLabel.Text = "Ping: " .. getPing()
-		end
-	end)
-
-	task.spawn(function()
-		while true do
-			updateStats()
-			task.wait(0.5)
-		end
-	end)
-
 	updateStats()
+
+	print("[UIController] Started. Currency = Auracoins.")
 end
 
 return UIController

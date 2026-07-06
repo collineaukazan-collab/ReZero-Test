@@ -206,7 +206,7 @@ GameConfig.TowerSandFloor = {
 
 	-- Position du spawn par rapport au centre de la tour.
 	SpawnOffset = Vector3.new(-20, 0, -30),
-	PlayerSpawnYOffset = 5,
+	PlayerSpawnYOffset = 0,
 
 	-- Efface seulement la petite zone de terrain de la tour avant de refaire le sable.
 	ClearOldSandArea = true,
@@ -235,6 +235,113 @@ GameConfig.TowerSandstorm = {
 
 	-- Couleur sable.
 	Color = Color3.fromRGB(210, 178, 115),
+}
+
+GameConfig.CurrencyName = "Auracoins"
+GameConfig.CurrencyColor = Color3.fromRGB(255, 221, 65)
+
+GameConfig.Sins = {
+	RollCost = 1,
+	SlotCount = 3,
+
+	-- +1 SinShard tous les 5 floors.
+	ShardEveryFloors = 5,
+
+	-- Image/PNG de l'autel dans la tour.
+	AltarImageId = "rbxassetid://0",
+
+	-- Position de l'objet Sins dans la tour.
+	AltarPosition = GameConfig.StairCenter + Vector3.new(0, 4, -18),
+
+	-- Envy : retour en arrière.
+	EnvyRewindSeconds = 60,
+	EnvyCooldown = 180,
+
+	-- Gluttony : temps après un push pendant lequel une mort compte.
+	GluttonyPushKillWindow = 8,
+
+	Definitions = {
+		Envy = {
+			DisplayName = "Envy",
+			Weight = 1,
+			Color = Color3.fromRGB(0, 255, 40),
+			Description = "On death, gain your rewards, then return 60 seconds before your death.",
+		},
+
+		Sloth = {
+			DisplayName = "Sloth",
+			Weight = 35,
+			Color = Color3.fromRGB(35, 140, 255),
+			Description = "Walk speed and run speed increase, but max stamina decreases.",
+			WalkSpeedMultiplier = 1.07,
+			RunSpeedMultiplier = 1.07,
+			StaminaMultiplier = 0.80,
+		},
+
+		Greed = {
+			DisplayName = "Greed",
+			Weight = 40,
+			Color = Color3.fromRGB(255, 190, 0),
+			Description = "Gain 20% more Auracoins.",
+			AuracoinsMultiplier = 1.20,
+		},
+
+		Gluttony = {
+			DisplayName = "Gluttony",
+			Weight = 30,
+			Color = Color3.fromRGB(120, 255, 80),
+			Description = "If a player dies after your push, your stamina goes to 100% and insanity goes to 0%.",
+		},
+
+		Pride = {
+			DisplayName = "Pride",
+			Weight = 60,
+			Color = Color3.fromRGB(190, 50, 255),
+			Description = "Run speed increases by 10%.",
+			RunSpeedMultiplier = 1.10,
+		},
+
+		Wrath = {
+			DisplayName = "Wrath",
+			Weight = 15,
+			Color = Color3.fromRGB(255, 25, 45),
+			Description = "Insanity gain is reduced by 25%.",
+			InsanityMultiplier = 0.75,
+		},
+
+		Lust = {
+			DisplayName = "Lust",
+			Weight = 50,
+			Color = Color3.fromRGB(255, 0, 220),
+			Description = "Gives 3% run speed to you and nearby players within 40 studs.",
+			LustRadius = 40,
+			LustRunSpeedMultiplier = 1.03,
+		},
+	},
+
+	RollOrder = {
+		"Envy",
+		"Sloth",
+		"Greed",
+		"Gluttony",
+		"Pride",
+		"Wrath",
+		"Lust",
+	},
+}
+
+GameConfig.Push = {
+	Enabled = true,
+
+	Range = 9,
+	ConeDot = 0.45,
+
+	Cooldown = 2.2,
+
+	HorizontalPower = 85,
+	UpPower = 18,
+
+	ButtonText = "PUSH",
 }
 
 return GameConfig

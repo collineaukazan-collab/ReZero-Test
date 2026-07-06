@@ -1,30 +1,73 @@
 local Services = script:WaitForChild("Services")
 
-local PlayerDataService = require(Services.PlayerDataService)
-local WorldService = require(Services.WorldService)
-local RemoteService = require(Services.RemoteService)
-local LeaderboardService = require(Services.LeaderboardService)
-local HeightService = require(Services.HeightService)
-local RewardService = require(Services.RewardService)
-local RagdollService = require(Services.RagdollService)
+local function requireService(name, optional)
+	local module = Services:FindFirstChild(name)
 
-local CharacterService = Services:FindFirstChild("CharacterService")
-local InsanityService = require(Services.InsanityService)
+	if not module then
+		if not optional then
+			warn("[Server] Missing service:", name)
+		end
 
-print("[Server] Starting ReZero-Test")
+		return nil
+	end
 
-PlayerDataService:Start()
-WorldService:Start()
-RemoteService:Start(PlayerDataService)
-LeaderboardService:Start(PlayerDataService)
+	local success, result = pcall(require, module)
 
-if CharacterService then
-	require(CharacterService):Start()
+	if not success then
+		warn("[Server] Failed to require", name, result)
+		return nil
+	end
+
+	return result
 end
 
-RagdollService:Start()
-HeightService:Start(PlayerDataService, RagdollService)
-InsanityService:Start(RagdollService)
-RewardService:Start(PlayerDataService)
+local function startService(name, optional)
+	local service = requireService(name, optional)
 
-print("[Server] ReZero-Test started")
+	if not service then
+		return nil
+	end
+
+	if type(service) ~= "table" then
+		warn("[Server] Service did not return a table:", name)
+		return nil
+	end
+
+	if type(service.Start) ~= "function" then
+		warn("[Server] Service has no Start function:", name)
+		return service
+	end
+
+	local success, err = pcall(function()
+		service:Start()
+	end)
+
+	if not success then
+		warn("[Server] Failed to start service:", name, err)
+	end
+
+	return service
+end
+
+-- Services de base
+startService("RemoteService", true)
+startService("PlayerDataService", true)
+
+-- Monde / rendu serveur
+startService("WorldService", true)
+startService("SinAltarService", true)
+
+-- Stats / récompenses
+startService("LeaderboardService", true)
+startService("RewardService", true)
+
+-- Physique / hauteur / folie
+startService("RagdollService", true)
+startService("HeightService", true)
+startService("InsanityService", true)
+
+-- Sins / push
+startService("SinService", true)
+startService("PushService", true)
+
+print("[Server] ReZero-Test server started.")
