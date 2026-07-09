@@ -185,7 +185,8 @@ end
 
 local function setupPlayerDefaults(player)
 	if player:GetAttribute("SinShards") == nil then
-		player:SetAttribute("SinShards", 0)
+		local config = getSinsConfig()
+		player:SetAttribute("SinShards", config.StartingSinShards or 0)
 	end
 
 	if player:GetAttribute("LastSinShardMilestone") == nil then

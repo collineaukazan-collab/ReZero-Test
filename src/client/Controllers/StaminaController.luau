@@ -16,7 +16,6 @@ local stamina = 100
 local exhausted = false
 local shiftHeld = false
 local lastSprintInputAt = 0
-
 local started = false
 
 local function getStaminaConfig()
@@ -29,6 +28,19 @@ end
 
 local function getRestConfig()
 	return GameConfig.Rest or {}
+end
+
+local function applyRigGroundFix()
+	if not humanoid then
+		return
+	end
+
+	if humanoid.RigType == Enum.HumanoidRigType.R6 then
+		humanoid.HipHeight = 0
+	else
+		local charConfig = getCharacterConfig()
+		humanoid.HipHeight = charConfig.HipHeight or humanoid.HipHeight
+	end
 end
 
 local function getMaxStamina()
@@ -139,11 +151,15 @@ local function setupCharacter(newCharacter)
 	if humanoid then
 		local charConfig = getCharacterConfig()
 
+		applyRigGroundFix()
+
 		humanoid.WalkSpeed = getWalkSpeed()
 		humanoid.JumpPower = charConfig.JumpPower or 55
 		humanoid.JumpHeight = charConfig.JumpHeight or 7.2
-		humanoid.HipHeight = charConfig.HipHeight or humanoid.HipHeight
 		humanoid.MaxSlopeAngle = charConfig.MaxSlopeAngle or humanoid.MaxSlopeAngle
+
+		humanoid.PlatformStand = false
+		humanoid.AutoRotate = true
 
 		humanoid.Died:Connect(function()
 			localPlayer:SetAttribute("RunToggled", false)
@@ -156,6 +172,8 @@ local function update(dt)
 	if not humanoid or humanoid.Health <= 0 then
 		return
 	end
+
+	applyRigGroundFix()
 
 	local config = getStaminaConfig()
 	local restConfig = getRestConfig()

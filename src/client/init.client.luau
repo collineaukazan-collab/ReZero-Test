@@ -62,9 +62,10 @@ if MusicController then
 	startController("MusicPlayerController", true, MusicController)
 end
 
+startController("AuracoinPopupController", true)
+
 startController("SinMenuController", true)
 startController("SideButtonsController", true)
-startController("PushButtonController", true)
 startController("ActionButtonsController", true)
 startController("AnimationController", true)
 

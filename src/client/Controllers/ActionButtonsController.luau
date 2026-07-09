@@ -1,119 +1,162 @@
 local Players = game:GetService("Players")
-local ContextActionService = game:GetService("ContextActionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local ActionButtonsController = {}
 
 local localPlayer = Players.LocalPlayer
 
-local restButton = nil
+local mainFrame = nil
 local runButton = nil
+local restButton = nil
 local auraButton = nil
+local pushButton = nil
 
 local setRestingRemote = nil
-local lastRestButtonToggle = 0
-local lastRunToggle = 0
+local pushRemote = nil
 
+local normalPosition = UDim2.new(0.5, -214, 1, -76)
+local hiddenPosition = UDim2.new(0.5, -214, 1, 50)
+
+local restToggled = false
 local cHeld = false
+local pushCooldown = false
 
-local function getRestingRemote()
-	if setRestingRemote then
-		return setRestingRemote
-	end
+local THEME_BG = Color3.fromRGB(8, 8, 12)
+local THEME_WHITE = Color3.fromRGB(255, 255, 255)
 
-	local remotes = ReplicatedStorage:WaitForChild("Remotes")
-	setRestingRemote = remotes:WaitForChild("SetResting")
-
-	return setRestingRemote
+local function makeStroke(parent)
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = THEME_WHITE
+	stroke.Thickness = 1
+	stroke.Transparency = 0.25
+	stroke.Parent = parent
 end
 
-local function setResting(value)
-	localPlayer:SetAttribute("IsResting", value)
-
-	if value then
-		localPlayer:SetAttribute("RunToggled", false)
-	end
-
-	getRestingRemote():FireServer(value)
-end
-
--- Bouton REST = toggle.
-local function toggleRestButton()
-	if os.clock() - lastRestButtonToggle < 0.18 then
-		return
-	end
-
-	lastRestButtonToggle = os.clock()
-
-	local current = localPlayer:GetAttribute("IsResting") == true
-	setResting(not current)
-end
-
-local function toggleRun()
-	if os.clock() - lastRunToggle < 0.18 then
-		return
-	end
-
-	lastRunToggle = os.clock()
-
-	local current = localPlayer:GetAttribute("RunToggled") == true
-
-	if not current then
-		setResting(false)
-	end
-
-	localPlayer:SetAttribute("RunToggled", not current)
-end
-
-local function updateButtons()
-	local resting = localPlayer:GetAttribute("IsResting") == true
-	local runToggled = localPlayer:GetAttribute("RunToggled") == true
-
-	if restButton then
-		restButton.Text = resting and "REST: ON" or "REST"
-		restButton.BackgroundColor3 = resting
-			and Color3.fromRGB(80, 80, 110)
-			or Color3.fromRGB(28, 28, 34)
-	end
-
-	if runButton then
-		runButton.Text = runToggled and "RUN: ON" or "RUN"
-		runButton.BackgroundColor3 = runToggled
-			and Color3.fromRGB(55, 100, 70)
-			or Color3.fromRGB(28, 28, 34)
-	end
-
-	if auraButton then
-		auraButton.Text = "AURA"
-	end
-end
-
-local function createButton(parent, name, text, position)
+local function createButton(parent, name, text, index)
 	local button = Instance.new("TextButton")
 	button.Name = name
-	button.Size = UDim2.fromOffset(86, 38)
-	button.Position = position
-	button.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+	button.Size = UDim2.fromOffset(96, 42)
+	button.Position = UDim2.fromOffset((index - 1) * 108, 0)
+	button.BackgroundColor3 = THEME_BG
 	button.BackgroundTransparency = 0.05
 	button.BorderSizePixel = 0
 	button.Text = text
-	button.TextColor3 = Color3.fromRGB(235, 235, 245)
-	button.TextSize = 14
-	button.Font = Enum.Font.GothamBold
+	button.TextColor3 = THEME_WHITE
+	button.TextSize = 15
+	button.Font = Enum.Font.GothamBlack
 	button.AutoButtonColor = true
 	button.Parent = parent
 
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(75, 75, 90)
-	stroke.Thickness = 1
-	stroke.Transparency = 0.25
-	stroke.Parent = button
+	makeStroke(button)
 
 	return button
 end
 
-local function createGui()
+local function setMenuHidden(hidden)
+	if not mainFrame then
+		return
+	end
+
+	TweenService:Create(
+		mainFrame,
+		TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Position = hidden and hiddenPosition or normalPosition }
+	):Play()
+end
+
+local function setResting(value)
+	localPlayer:SetAttribute("IsResting", value == true)
+
+	if setRestingRemote then
+		setRestingRemote:FireServer(value == true)
+	end
+end
+
+local function refreshButtons()
+	local runToggled = localPlayer:GetAttribute("RunToggled") == true
+	local resting = localPlayer:GetAttribute("IsResting") == true
+
+	if runButton then
+		runButton.BackgroundColor3 = runToggled and Color3.fromRGB(40, 28, 70) or THEME_BG
+	end
+
+	if restButton then
+		restButton.BackgroundColor3 = resting and Color3.fromRGB(40, 28, 70) or THEME_BG
+	end
+end
+
+local function toggleRun()
+	local newValue = not (localPlayer:GetAttribute("RunToggled") == true)
+
+	if newValue then
+		restToggled = false
+		setResting(false)
+	end
+
+	localPlayer:SetAttribute("RunToggled", newValue)
+	refreshButtons()
+end
+
+local function toggleRest()
+	restToggled = not restToggled
+
+	if restToggled then
+		localPlayer:SetAttribute("RunToggled", false)
+	end
+
+	setResting(restToggled)
+	refreshButtons()
+end
+
+local function setHoldRest(value)
+	cHeld = value == true
+
+	if cHeld then
+		restToggled = false
+		localPlayer:SetAttribute("RunToggled", false)
+		setResting(true)
+	else
+		if not restToggled then
+			setResting(false)
+		end
+	end
+
+	refreshButtons()
+end
+
+local function push()
+	if pushCooldown then
+		return
+	end
+
+	pushCooldown = true
+
+	if pushRemote then
+		pushRemote:FireServer()
+	end
+
+	if pushButton then
+		pushButton.Text = "..."
+	end
+
+	task.delay(0.35, function()
+		if pushButton then
+			pushButton.Text = "PUSH"
+		end
+	end)
+
+	task.delay(2.2, function()
+		pushCooldown = false
+	end)
+end
+
+function ActionButtonsController:Start()
+	local remotes = ReplicatedStorage:WaitForChild("Remotes")
+	setRestingRemote = remotes:WaitForChild("SetResting")
+	pushRemote = remotes:WaitForChild("PushRequest")
+
 	local playerGui = localPlayer:WaitForChild("PlayerGui")
 
 	local old = playerGui:FindFirstChild("ActionButtonsGui")
@@ -121,91 +164,65 @@ local function createGui()
 		old:Destroy()
 	end
 
+	local oldPush = playerGui:FindFirstChild("PushButtonGui")
+	if oldPush then
+		oldPush:Destroy()
+	end
+
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "ActionButtonsGui"
-	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
-	gui.DisplayOrder = 200
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 350
 	gui.Parent = playerGui
 
-	local holder = Instance.new("Frame")
-	holder.Name = "Holder"
-	holder.Size = UDim2.fromOffset(282, 42)
-	holder.AnchorPoint = Vector2.new(0.5, 1)
-	holder.Position = UDim2.new(0.5, 0, 1, -28)
-	holder.BackgroundTransparency = 1
-	holder.Parent = gui
+	mainFrame = Instance.new("Frame")
+	mainFrame.Name = "ActionButtonsFrame"
+	mainFrame.Position = normalPosition
+	mainFrame.Size = UDim2.fromOffset(428, 44)
+	mainFrame.BackgroundTransparency = 1
+	mainFrame.Parent = gui
 
-	restButton = createButton(holder, "RestButton", "REST", UDim2.fromOffset(0, 0))
-	runButton = createButton(holder, "RunButton", "RUN", UDim2.fromOffset(98, 0))
-	auraButton = createButton(holder, "AuraButton", "AURA", UDim2.fromOffset(196, 0))
+	restButton = createButton(mainFrame, "RestButton", "REST", 1)
+	runButton = createButton(mainFrame, "RunButton", "RUN", 2)
+	auraButton = createButton(mainFrame, "AuraButton", "AURA", 3)
+	pushButton = createButton(mainFrame, "PushButton", "PUSH", 4)
 
-	restButton.Activated:Connect(function()
-		toggleRestButton()
-	end)
-
-	runButton.Activated:Connect(function()
-		toggleRun()
-	end)
+	restButton.Activated:Connect(toggleRest)
+	runButton.Activated:Connect(toggleRun)
+	pushButton.Activated:Connect(push)
 
 	auraButton.Activated:Connect(function()
-		print("[Aura] Pas encore configuré.")
+		print("[ActionButtonsController] Aura button pressed.")
 	end)
 
-	updateButtons()
-end
-
--- Touche C = maintien, pas toggle.
-local function onRestKey(_, inputState)
-	if UserInputService:GetFocusedTextBox() then
-		return Enum.ContextActionResult.Pass
-	end
-
-	if inputState == Enum.UserInputState.Begin then
-		if not cHeld then
-			cHeld = true
-			setResting(true)
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			return
 		end
 
-		return Enum.ContextActionResult.Sink
-	end
-
-	if inputState == Enum.UserInputState.End or inputState == Enum.UserInputState.Cancel then
-		if cHeld then
-			cHeld = false
-			setResting(false)
+		if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
+			localPlayer:SetAttribute("RunToggled", true)
+			refreshButtons()
+		elseif input.KeyCode == Enum.KeyCode.C then
+			setHoldRest(true)
 		end
-
-		return Enum.ContextActionResult.Sink
-	end
-
-	return Enum.ContextActionResult.Pass
-end
-
-function ActionButtonsController:Start()
-	localPlayer:SetAttribute("RunToggled", false)
-	localPlayer:SetAttribute("IsResting", false)
-
-	createGui()
-
-	localPlayer:GetAttributeChangedSignal("IsResting"):Connect(updateButtons)
-	localPlayer:GetAttributeChangedSignal("RunToggled"):Connect(updateButtons)
-
-	ContextActionService:UnbindAction("HoldRestAction")
-	ContextActionService:BindAction(
-		"HoldRestAction",
-		onRestKey,
-		false,
-		Enum.KeyCode.C
-	)
-
-	localPlayer.CharacterAdded:Connect(function()
-		task.wait(0.1)
-		cHeld = false
-		setResting(false)
-		localPlayer:SetAttribute("RunToggled", false)
-		updateButtons()
 	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.KeyCode == Enum.KeyCode.C then
+			setHoldRest(false)
+		end
+	end)
+
+	playerGui:GetAttributeChangedSignal("MenuOpen"):Connect(function()
+		setMenuHidden(playerGui:GetAttribute("MenuOpen") == true)
+	end)
+
+	localPlayer:GetAttributeChangedSignal("RunToggled"):Connect(refreshButtons)
+	localPlayer:GetAttributeChangedSignal("IsResting"):Connect(refreshButtons)
+
+	refreshButtons()
 end
 
 return ActionButtonsController

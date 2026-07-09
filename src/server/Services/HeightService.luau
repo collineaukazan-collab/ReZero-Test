@@ -8,9 +8,15 @@ local HeightService = {}
 
 local airborneSince = {}
 local airborneStartY = {}
+local ragdollStarted = {}
+local recoveryScheduled = {}
 local fallStartedSent = {}
 
 local ragdollService = nil
+
+local function getFallConfig()
+	return GameConfig.FallKillSystem or {}
+end
 
 local function getRagdollService()
 	if ragdollService ~= nil then
@@ -24,7 +30,7 @@ local function getRagdollService()
 	if success and type(result) == "table" then
 		ragdollService = result
 	else
-		warn("[HeightService] RagdollService not available:", result)
+		warn("[HeightService] RagdollService unavailable:", result)
 		ragdollService = false
 	end
 
@@ -62,6 +68,10 @@ end
 
 local function getHumanoid(character)
 	return character and character:FindFirstChildOfClass("Humanoid")
+end
+
+local function isRagdolled(character)
+	return character and character:GetAttribute("IsRagdolled") == true
 end
 
 local function getSpawnY()
@@ -114,99 +124,81 @@ local function updateHeightAttributes(player, root)
 	player:SetAttribute("BestFloor", bestFloor)
 end
 
-local function isRagdolled(character)
-	return character and character:GetAttribute("IsRagdolled") == true
-end
-
-local function basicRagdollFallback(character)
-	local humanoid = getHumanoid(character)
-	local root = getRoot(character)
-
-	if not humanoid or not root then
+local function sendFallStarted(player)
+	if fallStartedSent[player] then
 		return
 	end
 
-	character:SetAttribute("IsRagdolled", true)
-
-	humanoid.PlatformStand = true
-	humanoid.AutoRotate = false
-	humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-
-	pcall(function()
-		humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
-		humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
-		humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
-	end)
-
-	root.AssemblyAngularVelocity = Vector3.new(
-		math.random(-4, 4),
-		math.random(-4, 4),
-		math.random(-4, 4)
-	)
+	fallStartedSent[player] = true
+	getOrCreateRemoteEvent("FallStarted"):FireClient(player)
 end
 
-local function callRagdollService(player, character)
+local function killPlayer(player)
+	local character = player.Character
+	local humanoid = getHumanoid(character)
+
+	if not humanoid or humanoid.Health <= 0 then
+		return
+	end
+
+	getOrCreateRemoteEvent("ForceBlackScreen"):FireClient(player)
+	humanoid.Health = 0
+end
+
+local function ragdollCharacter(player, character)
+	if ragdollStarted[player] then
+		return
+	end
+
+	ragdollStarted[player] = os.clock()
+
 	local service = getRagdollService()
 
-	if not service then
-		basicRagdollFallback(character)
+	if service and type(service.RagdollCharacter) == "function" then
+		service:RagdollCharacter(character)
+	else
+		character:SetAttribute("IsRagdolled", true)
+	end
+
+	sendFallStarted(player)
+end
+
+local function unragdollCharacter(player)
+	local character = player.Character
+
+	if not character or not character.Parent then
 		return
 	end
 
-	local called = false
+	local humanoid = getHumanoid(character)
 
-	local possibleCalls = {
-		function()
-			if type(service.RagdollPlayer) == "function" then
-				service:RagdollPlayer(player)
-				return true
-			end
-		end,
-
-		function()
-			if type(service.RagdollCharacter) == "function" then
-				service:RagdollCharacter(character)
-				return true
-			end
-		end,
-
-		function()
-			if type(service.RagdollCharacter) == "function" then
-				service:RagdollCharacter(player, character)
-				return true
-			end
-		end,
-
-		function()
-			if type(service.ragdollCharacter) == "function" then
-				service:ragdollCharacter(character)
-				return true
-			end
-		end,
-	}
-
-	for _, callback in ipairs(possibleCalls) do
-		local success, result = pcall(callback)
-
-		if success and result == true then
-			called = true
-			break
-		end
+	if not humanoid or humanoid.Health <= 0 then
+		return
 	end
 
-	task.delay(0.05, function()
-		if character and character.Parent and character:GetAttribute("IsRagdolled") ~= true then
-			basicRagdollFallback(character)
-		end
-	end)
+	local service = getRagdollService()
 
-	if not called then
-		basicRagdollFallback(character)
+	if service and type(service.UnragdollCharacter) == "function" then
+		service:UnragdollCharacter(character)
+	else
+		character:SetAttribute("IsRagdolled", false)
+
+		humanoid.PlatformStand = false
+		humanoid.AutoRotate = true
+		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 	end
+
+	ragdollStarted[player] = nil
+	recoveryScheduled[player] = nil
+	fallStartedSent[player] = nil
+
+	print("[HeightService] Player recovered from ragdoll:", player.Name)
 end
 
-local function shouldStartRagdoll(player, character, humanoid, root)
-	if isRagdolled(character) then
+local function shouldActivateRagdoll(player, humanoid, root)
+	local config = getFallConfig()
+
+	if config.Enabled == false then
 		return false
 	end
 
@@ -215,140 +207,107 @@ local function shouldStartRagdoll(player, character, humanoid, root)
 	end
 
 	local currentStuds = tonumber(player:GetAttribute("CurrentStuds")) or 0
-	local minimumStuds = GameConfig.MinimumStudsBeforeFallKill or 15
+	local minimumStuds = config.MinimumStudsBeforeFallKill or GameConfig.MinimumStudsBeforeFallKill or 15
 
 	if currentStuds < minimumStuds then
 		return false
 	end
 
-	local airTime = 0
-
-	if airborneSince[player] then
-		airTime = os.clock() - airborneSince[player]
+	if humanoid.FloorMaterial ~= Enum.Material.Air then
+		return false
 	end
 
 	local startY = airborneStartY[player] or root.Position.Y
 	local fallDistance = math.max(0, startY - root.Position.Y)
 	local velocityY = root.AssemblyLinearVelocity.Y
 
-	if airTime < (GameConfig.RagdollMinAirTime or 0.35) then
-		return false
-	end
+	local minFallDistance = config.MinFallDistanceToRagdoll or 22
+	local velocityThreshold = config.VelocityYToRagdoll or -28
 
-	if fallDistance < (GameConfig.RagdollMinFallDistance or 18) then
-		return false
-	end
-
-	if velocityY > (GameConfig.FallingVelocityToRagdoll or -22) then
-		return false
-	end
-
-	return true
-end
-
-local function startRagdoll(player, character)
-	callRagdollService(player, character)
-
-	if not fallStartedSent[player] then
-		fallStartedSent[player] = true
-
-		local fallStartedRemote = getOrCreateRemoteEvent("FallStarted")
-		fallStartedRemote:FireClient(player)
-	end
-end
-
-local function getFastestDownwardSpeed(root)
-	return math.max(0, -root.AssemblyLinearVelocity.Y)
-end
-
-local function getDynamicGroundDeathY(root)
-	local base = GameConfig.GroundDeathY or 7
-
-	if GameConfig.DynamicGroundDeathEnabled == false then
-		return base
-	end
-
-	local speed = getFastestDownwardSpeed(root)
-	local minSpeed = GameConfig.DynamicGroundDeathMinSpeed or 80
-	local maxBonus = GameConfig.DynamicGroundDeathMaxBonus or 45
-	local multiplier = GameConfig.DynamicGroundDeathSpeedMultiplier or 0.22
-
-	local bonus = math.clamp((speed - minSpeed) * multiplier, 0, maxBonus)
-
-	return base + bonus
-end
-
-local function shouldDieFromFall(player, character, humanoid, root)
-	if humanoid.Health <= 0 then
-		return false
-	end
-
-	if root.Position.Y <= (GameConfig.FallDeathY or -25) then
+	if fallDistance >= minFallDistance then
 		return true
 	end
 
-	if not isRagdolled(character) then
-		return false
+	if velocityY <= velocityThreshold then
+		return true
 	end
 
-	local currentStuds = tonumber(player:GetAttribute("CurrentStuds")) or 0
-	local minimumStuds = GameConfig.MinimumStudsBeforeFallKill or 15
-
-	if currentStuds < minimumStuds then
-		return false
-	end
-
-	local groundDeathY = getDynamicGroundDeathY(root)
-
-	return root.Position.Y <= groundDeathY
+	return false
 end
 
-local function applyFallForces(character, dt)
+local function isGroundedWhileRagdolled(player, character, humanoid, root)
 	if not isRagdolled(character) then
+		return false
+	end
+
+	local startedAt = ragdollStarted[player]
+
+	if not startedAt then
+		return false
+	end
+
+	-- Évite de se relever immédiatement au moment où le ragdoll vient de s'activer.
+	if os.clock() - startedAt < 0.45 then
+		return false
+	end
+
+	if humanoid.FloorMaterial ~= Enum.Material.Air then
+		return true
+	end
+
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { character }
+	params.IgnoreWater = true
+
+	local result = workspace:Raycast(
+		root.Position,
+		Vector3.new(0, -5.5, 0),
+		params
+	)
+
+	if result then
+		return true
+	end
+
+	return false
+end
+
+local function scheduleRecovery(player)
+	if recoveryScheduled[player] then
 		return
 	end
 
-	local service = getRagdollService()
+	recoveryScheduled[player] = true
 
-	if service then
-		if type(service.ApplyCenterPull) == "function" then
-			pcall(function()
-				service:ApplyCenterPull(character, dt)
-			end)
+	task.delay(0.65, function()
+		local character = player.Character
+		local humanoid = getHumanoid(character)
+		local root = getRoot(character)
+
+		if not character or not humanoid or not root then
+			recoveryScheduled[player] = nil
+			return
 		end
 
-		if type(service.ApplyFallPhysics) == "function" then
-			pcall(function()
-				service:ApplyFallPhysics(character, dt)
-			end)
+		if humanoid.Health <= 0 then
+			recoveryScheduled[player] = nil
+			return
 		end
-	end
 
-	local root = getRoot(character)
-
-	if root and GameConfig.FallAccelerationEnabled ~= false then
-		local velocity = root.AssemblyLinearVelocity
-		local maxFallSpeed = GameConfig.MaxFallSpeed or -420
-		local acceleration = GameConfig.FallAcceleration or 120
-
-		local newY = math.max(maxFallSpeed, math.min(velocity.Y, 0) - acceleration * dt)
-
-		root.AssemblyLinearVelocity = Vector3.new(
-			velocity.X,
-			newY,
-			velocity.Z
-		)
-	end
-end
-
-local function killFromFall(player, humanoid)
-	local blackScreenRemote = getOrCreateRemoteEvent("ForceBlackScreen")
-	blackScreenRemote:FireClient(player)
-
-	humanoid.Health = 0
+		if isGroundedWhileRagdolled(player, character, humanoid, root) then
+			unragdollCharacter(player)
+		else
+			recoveryScheduled[player] = nil
+		end
+	end)
 end
 
 local function updateAirborneState(player, humanoid, root)
+	if isRagdolled(player.Character) then
+		return
+	end
+
 	if humanoid.FloorMaterial == Enum.Material.Air then
 		if not airborneSince[player] then
 			airborneSince[player] = os.clock()
@@ -357,7 +316,24 @@ local function updateAirborneState(player, humanoid, root)
 	else
 		airborneSince[player] = nil
 		airborneStartY[player] = nil
-		fallStartedSent[player] = nil
+	end
+end
+
+local function applyRagdollFallForces(character, dt)
+	if not character or character:GetAttribute("IsRagdolled") ~= true then
+		return
+	end
+
+	local service = getRagdollService()
+
+	if service then
+		if type(service.ApplyCenterPull) == "function" then
+			service:ApplyCenterPull(character, dt)
+		end
+
+		if type(service.ApplyFallPhysics) == "function" then
+			service:ApplyFallPhysics(character, dt)
+		end
 	end
 end
 
@@ -375,16 +351,62 @@ local function updatePlayer(player, dt)
 	end
 
 	updateHeightAttributes(player, root)
-	updateAirborneState(player, humanoid, root)
 
-	if shouldStartRagdoll(player, character, humanoid, root) then
-		startRagdoll(player, character)
+	local config = getFallConfig()
+	local absoluteDeathY = config.AbsoluteDeathY or -120
+
+	-- Garde juste une sécurité si le joueur sort totalement de la map.
+	if root.Position.Y <= absoluteDeathY then
+		killPlayer(player)
+		return
 	end
 
-	applyFallForces(character, dt)
+	updateAirborneState(player, humanoid, root)
 
-	if shouldDieFromFall(player, character, humanoid, root) then
-		killFromFall(player, humanoid)
+	if not isRagdolled(character) and shouldActivateRagdoll(player, humanoid, root) then
+		ragdollCharacter(player, character)
+	end
+
+	if isRagdolled(character) then
+		applyRagdollFallForces(character, dt)
+
+		if isGroundedWhileRagdolled(player, character, humanoid, root) then
+			scheduleRecovery(player)
+		end
+	end
+end
+
+local function resetPlayerFallState(player)
+	airborneSince[player] = nil
+	airborneStartY[player] = nil
+	ragdollStarted[player] = nil
+	recoveryScheduled[player] = nil
+	fallStartedSent[player] = nil
+end
+
+local function setupCharacter(player, character)
+	resetPlayerFallState(player)
+
+	character:SetAttribute("IsRagdolled", false)
+
+	local humanoid = character:WaitForChild("Humanoid", 10)
+
+	if humanoid then
+		humanoid.PlatformStand = false
+		humanoid.AutoRotate = true
+		humanoid.RequiresNeck = false
+
+		if humanoid.RigType == Enum.HumanoidRigType.R6 then
+			humanoid.HipHeight = 0
+		end
+
+		pcall(function()
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, true)
+		end)
 	end
 end
 
@@ -402,31 +424,16 @@ local function setupPlayer(player)
 	end
 
 	player.CharacterAdded:Connect(function(character)
-		airborneSince[player] = nil
-		airborneStartY[player] = nil
-		fallStartedSent[player] = nil
-
-		character:SetAttribute("IsRagdolled", false)
-
-		local humanoid = character:WaitForChild("Humanoid", 10)
-
-		if humanoid then
-			humanoid.PlatformStand = false
-			humanoid.AutoRotate = true
-
-			pcall(function()
-				humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-				humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-				humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
-			end)
-		end
+		setupCharacter(player, character)
 	end)
 
 	player.CharacterRemoving:Connect(function()
-		airborneSince[player] = nil
-		airborneStartY[player] = nil
-		fallStartedSent[player] = nil
+		resetPlayerFallState(player)
 	end)
+
+	if player.Character then
+		setupCharacter(player, player.Character)
+	end
 end
 
 function HeightService:Start()
@@ -436,9 +443,7 @@ function HeightService:Start()
 	Players.PlayerAdded:Connect(setupPlayer)
 
 	Players.PlayerRemoving:Connect(function(player)
-		airborneSince[player] = nil
-		airborneStartY[player] = nil
-		fallStartedSent[player] = nil
+		resetPlayerFallState(player)
 	end)
 
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -451,7 +456,7 @@ function HeightService:Start()
 		end
 	end)
 
-	print("[HeightService] Started.")
+	print("[HeightService] Started ragdoll recovery system.")
 end
 
 return HeightService

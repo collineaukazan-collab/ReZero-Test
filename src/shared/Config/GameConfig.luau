@@ -244,28 +244,44 @@ GameConfig.Sins = {
 	RollCost = 1,
 	SlotCount = 3,
 
+	-- Nombre de SinShards au début.
+	StartingSinShards = 100,
+
 	-- +1 SinShard tous les 5 floors.
 	ShardEveryFloors = 5,
 
-	-- Image/PNG de l'autel dans la tour.
 	AltarImageId = "rbxassetid://0",
-
-	-- Position de l'objet Sins dans la tour.
 	AltarPosition = GameConfig.StairCenter + Vector3.new(0, 4, -18),
 
-	-- Envy : retour en arrière.
 	EnvyRewindSeconds = 60,
 	EnvyCooldown = 180,
 
-	-- Gluttony : temps après un push pendant lequel une mort compte.
 	GluttonyPushKillWindow = 8,
 
 	Definitions = {
-		Envy = {
-			DisplayName = "Envy",
-			Weight = 1,
-			Color = Color3.fromRGB(0, 255, 40),
-			Description = "On death, gain your rewards, then return 60 seconds before your death.",
+		Pride = {
+			DisplayName = "Pride",
+			Weight = 60,
+			Color = Color3.fromRGB(190, 50, 255),
+			Description = "Run speed increases by 10%.",
+			RunSpeedMultiplier = 1.10,
+		},
+
+		Lust = {
+			DisplayName = "Lust",
+			Weight = 50,
+			Color = Color3.fromRGB(255, 0, 220),
+			Description = "Gives 3% run speed to you and nearby players within 40 studs.",
+			LustRadius = 40,
+			LustRunSpeedMultiplier = 1.03,
+		},
+
+		Greed = {
+			DisplayName = "Greed",
+			Weight = 40,
+			Color = Color3.fromRGB(255, 190, 0),
+			Description = "Gain 20% more Auracoins.",
+			AuracoinsMultiplier = 1.20,
 		},
 
 		Sloth = {
@@ -278,27 +294,11 @@ GameConfig.Sins = {
 			StaminaMultiplier = 0.80,
 		},
 
-		Greed = {
-			DisplayName = "Greed",
-			Weight = 40,
-			Color = Color3.fromRGB(255, 190, 0),
-			Description = "Gain 20% more Auracoins.",
-			AuracoinsMultiplier = 1.20,
-		},
-
 		Gluttony = {
 			DisplayName = "Gluttony",
 			Weight = 30,
 			Color = Color3.fromRGB(120, 255, 80),
 			Description = "If a player dies after your push, your stamina goes to 100% and insanity goes to 0%.",
-		},
-
-		Pride = {
-			DisplayName = "Pride",
-			Weight = 60,
-			Color = Color3.fromRGB(190, 50, 255),
-			Description = "Run speed increases by 10%.",
-			RunSpeedMultiplier = 1.10,
 		},
 
 		Wrath = {
@@ -309,24 +309,23 @@ GameConfig.Sins = {
 			InsanityMultiplier = 0.75,
 		},
 
-		Lust = {
-			DisplayName = "Lust",
-			Weight = 50,
-			Color = Color3.fromRGB(255, 0, 220),
-			Description = "Gives 3% run speed to you and nearby players within 40 studs.",
-			LustRadius = 40,
-			LustRunSpeedMultiplier = 1.03,
+		Envy = {
+			DisplayName = "Envy",
+			Weight = 1,
+			Color = Color3.fromRGB(0, 255, 40),
+			Description = "On death, gain your Auracoins, then return 60 seconds before your death.",
 		},
 	},
 
+	-- Du moins rare au plus rare affiché dans l'UI.
 	RollOrder = {
-		"Envy",
-		"Sloth",
-		"Greed",
-		"Gluttony",
 		"Pride",
-		"Wrath",
 		"Lust",
+		"Greed",
+		"Sloth",
+		"Gluttony",
+		"Wrath",
+		"Envy",
 	},
 }
 
@@ -342,6 +341,25 @@ GameConfig.Push = {
 	UpPower = 18,
 
 	ButtonText = "PUSH",
+}
+
+GameConfig.FallKillSystem = {
+	Enabled = true,
+
+	-- Le système ne s'active pas si tu es trop bas / début de run.
+	MinimumStudsBeforeFallKill = 15,
+
+	-- Seuil de chute pour activer le ragdoll.
+	MinFallDistanceToRagdoll = 22,
+
+	-- Si la vitesse verticale est plus basse que ça, ragdoll aussi.
+	VelocityYToRagdoll = -28,
+
+	-- Temps entre le ragdoll et la mort obligatoire.
+	DeathDelayAfterRagdoll = 1.1,
+
+	-- Si le joueur tombe beaucoup trop bas, mort directe.
+	AbsoluteDeathY = -80,
 }
 
 return GameConfig

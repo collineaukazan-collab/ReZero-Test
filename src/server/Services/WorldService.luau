@@ -20,9 +20,14 @@ local function lerp(a, b, t)
 	return a + (b - a) * t
 end
 
+local function getCenter()
+	local config = getSandConfig()
+	return config.Center or GameConfig.StairCenter or Vector3.zero
+end
+
 local function getSpawnXZ()
 	local config = getSandConfig()
-	local center = config.Center or GameConfig.StairCenter or Vector3.zero
+	local center = getCenter()
 	local offset = config.SpawnOffset or GameConfig.SpawnOffsetFromStair or Vector3.new(-20, 0, -30)
 
 	return Vector3.new(center.X + offset.X, 0, center.Z + offset.Z)
@@ -30,7 +35,7 @@ end
 
 local function getSandHeight(x, z)
 	local config = getSandConfig()
-	local center = config.Center or GameConfig.StairCenter or Vector3.zero
+	local center = getCenter()
 
 	local baseY = config.BaseY or 0
 	local reliefHeight = config.ReliefHeight or 1.15
@@ -78,8 +83,35 @@ local function getSandHeight(x, z)
 	return height
 end
 
+local function getGroundY(x, z, ignoreCharacter)
+	local config = getSandConfig()
+	local center = getCenter()
+
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.IgnoreWater = true
+
+	if ignoreCharacter then
+		params.FilterDescendantsInstances = { ignoreCharacter }
+	else
+		params.FilterDescendantsInstances = {}
+	end
+
+	local origin = Vector3.new(x, (config.BaseY or 0) + 90, z)
+	local direction = Vector3.new(0, -220, 0)
+
+	local result = workspace:Raycast(origin, direction, params)
+
+	if result then
+		return result.Position.Y
+	end
+
+	return getSandHeight(x, z)
+end
+
 local function clearOldGeneratedObjects()
 	local oldFolder = workspace:FindFirstChild("TowerSandFloor")
+
 	if oldFolder then
 		oldFolder:Destroy()
 	end
@@ -100,14 +132,14 @@ local function clearSandTerrainArea()
 		return
 	end
 
-	local center = config.Center or GameConfig.StairCenter or Vector3.zero
+	local center = getCenter()
 	local size = config.Size or 170
 	local baseY = config.BaseY or 0
 	local bottomY = config.BottomY or -4
 
 	terrain:FillBlock(
 		CFrame.new(center.X, (bottomY + baseY) / 2, center.Z),
-		Vector3.new(size + 20, 16, size + 20),
+		Vector3.new(size + 24, 18, size + 24),
 		Enum.Material.Air
 	)
 end
@@ -123,7 +155,7 @@ local function generateTowerSandFloor()
 	removeBaseplate()
 	clearSandTerrainArea()
 
-	local center = config.Center or GameConfig.StairCenter or Vector3.zero
+	local center = getCenter()
 	local size = config.Size or 170
 	local step = config.Step or 6
 	local bottomY = config.BottomY or -4
@@ -148,21 +180,47 @@ local function generateTowerSandFloor()
 		task.wait()
 	end
 
-	print("[WorldService] Simple tower sand floor generated.")
+	print("[WorldService] Tower sand floor generated.")
 end
 
-local function getSpawnPosition()
-	local config = getSandConfig()
+local function forceR6GroundSettings(character)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+	if not humanoid then
+		return
+	end
+
+	if humanoid.RigType == Enum.HumanoidRigType.R6 then
+		humanoid.HipHeight = 0
+	else
+		humanoid.HipHeight = GameConfig.Character and GameConfig.Character.HipHeight or humanoid.HipHeight
+	end
+
+	humanoid.PlatformStand = false
+	humanoid.AutoRotate = true
+end
+
+local function getRootYOffset(character)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character:FindFirstChild("HumanoidRootPart")
+
+	if not humanoid or not root then
+		return 3
+	end
+
+	if humanoid.RigType == Enum.HumanoidRigType.R6 then
+		return 3
+	end
+
+	return humanoid.HipHeight + root.Size.Y / 2 + 0.1
+end
+
+local function getSpawnPosition(character)
 	local spawnXZ = getSpawnXZ()
+	local groundY = getGroundY(spawnXZ.X, spawnXZ.Z, character)
+	local yOffset = character and getRootYOffset(character) or 3
 
-	local groundY = getSandHeight(spawnXZ.X, spawnXZ.Z)
-	local playerYOffset = config.PlayerSpawnYOffset or 3.1
-
-	return Vector3.new(
-		spawnXZ.X,
-		groundY + playerYOffset,
-		spawnXZ.Z
-	)
+	return Vector3.new(spawnXZ.X, groundY + yOffset, spawnXZ.Z)
 end
 
 local function getOrCreateSpawnLocation()
@@ -180,8 +238,8 @@ local function getOrCreateSpawnLocation()
 end
 
 local function setupSpawnLocation()
-	local config = getSandConfig()
-	local spawnPosition = getSpawnPosition()
+	local spawnXZ = getSpawnXZ()
+	local groundY = getGroundY(spawnXZ.X, spawnXZ.Z)
 	local spawnLocation = getOrCreateSpawnLocation()
 
 	spawnLocation.Anchored = true
@@ -192,16 +250,11 @@ local function setupSpawnLocation()
 	spawnLocation.Duration = 0
 	spawnLocation.Size = Vector3.new(8, 1, 8)
 	spawnLocation.Transparency = 1
+	spawnLocation.Position = Vector3.new(spawnXZ.X, groundY + 0.2, spawnXZ.Z)
 
-	spawnLocation.Position = Vector3.new(
-		spawnPosition.X,
-		(config.BaseY or 0) + 0.25,
-		spawnPosition.Z
-	)
+	GameConfig.SpawnPosition = Vector3.new(spawnXZ.X, groundY + 3, spawnXZ.Z)
 
-	GameConfig.SpawnPosition = spawnPosition
-
-	print("[WorldService] Spawn positioned at:", spawnPosition)
+	print("[WorldService] Spawn positioned at:", GameConfig.SpawnPosition)
 end
 
 local function resetRunAttributes(player)
@@ -222,25 +275,29 @@ end
 
 local function teleportCharacterToSpawn(character)
 	local root = character:WaitForChild("HumanoidRootPart", 10)
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
 
 	if not root then
 		return
 	end
 
-	task.wait(0.15)
+	task.wait(0.25)
 
-	local spawnPosition = getSpawnPosition()
+	forceR6GroundSettings(character)
+
+	local spawnPosition = getSpawnPosition(character)
 	GameConfig.SpawnPosition = spawnPosition
 
-	root.CFrame = CFrame.new(spawnPosition)
+	character:PivotTo(CFrame.new(spawnPosition))
+
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.AssemblyAngularVelocity = Vector3.zero
 
-	if humanoid then
-		humanoid.PlatformStand = false
-		humanoid:ChangeState(Enum.HumanoidStateType.Running)
-	end
+	task.delay(0.15, function()
+		if character.Parent and root.Parent then
+			forceR6GroundSettings(character)
+			root.AssemblyLinearVelocity = Vector3.zero
+		end
+	end)
 end
 
 function WorldService:Start()

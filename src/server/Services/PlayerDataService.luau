@@ -6,167 +6,174 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local PlayerDataService = {}
 
-PlayerDataService.Profiles = {}
+local storeName = (GameConfig.DataStoreName or "ReZeroLoopData_v1") .. "_PlayerData_v2"
+local dataStore = DataStoreService:GetDataStore(storeName)
 
-local dataStore = DataStoreService:GetDataStore(GameConfig.DataStoreName)
+local saving = {}
+local loaded = {}
 
-local DEFAULT_PROFILE = {
-	Money = 0,
-	BestStuds = 0,
-	MoneyMultiplier = GameConfig.DefaultMoneyMultiplier,
-	GraphicsQuality = GameConfig.DefaultQuality,
-}
-
-local function copyDefaultProfile()
-	return {
-		Money = DEFAULT_PROFILE.Money,
-		BestStuds = DEFAULT_PROFILE.BestStuds,
-		MoneyMultiplier = DEFAULT_PROFILE.MoneyMultiplier,
-		GraphicsQuality = DEFAULT_PROFILE.GraphicsQuality,
-	}
+local function getSinsConfig()
+	return GameConfig.Sins or {}
 end
 
-local function getKey(player)
+local function makeKey(player)
 	return "Player_" .. tostring(player.UserId)
 end
 
-local function normalizeProfile(data)
-	local profile = copyDefaultProfile()
+local function getDefaultData()
+	local sinsConfig = getSinsConfig()
 
-	if type(data) == "table" then
-		if type(data.Money) == "number" then
-			profile.Money = math.max(0, math.floor(data.Money))
-		end
+	return {
+		Auracoins = 0,
+		Money = 0,
 
-		if type(data.BestStuds) == "number" then
-			profile.BestStuds = math.max(0, math.floor(data.BestStuds))
-		end
+		BestStuds = 0,
+		BestFloor = 0,
 
-		if type(data.MoneyMultiplier) == "number" then
-			profile.MoneyMultiplier = math.max(1, data.MoneyMultiplier)
-		end
+		SinShards = sinsConfig.StartingSinShards or 0,
 
-		if type(data.GraphicsQuality) == "string" and GameConfig.QualitySettings[data.GraphicsQuality] then
-			profile.GraphicsQuality = data.GraphicsQuality
-		end
+		SinSlot1 = "",
+		SinSlot2 = "",
+		SinSlot3 = "",
+
+		GraphicsQuality = GameConfig.DefaultQuality or "Medium",
+	}
+end
+
+local function numberOrDefault(value, default)
+	if typeof(value) == "number" then
+		return value
 	end
 
-	return profile
+	return default
 end
 
-local function syncAttributes(player, profile)
-	player:SetAttribute("Money", profile.Money)
-	player:SetAttribute("BestStuds", profile.BestStuds)
-	player:SetAttribute("MoneyMultiplier", profile.MoneyMultiplier)
-	player:SetAttribute("GraphicsQuality", profile.GraphicsQuality)
+local function stringOrDefault(value, default)
+	if typeof(value) == "string" then
+		return value
+	end
+
+	return default
 end
 
-function PlayerDataService:Get(player)
-	return self.Profiles[player]
+local function applyData(player, data)
+	local defaultData = getDefaultData()
+	data = type(data) == "table" and data or defaultData
+
+	local auracoins = numberOrDefault(data.Auracoins, numberOrDefault(data.Money, defaultData.Auracoins))
+
+	player:SetAttribute("Auracoins", auracoins)
+	player:SetAttribute("Money", auracoins)
+
+	player:SetAttribute("BestStuds", numberOrDefault(data.BestStuds, defaultData.BestStuds))
+	player:SetAttribute("BestFloor", numberOrDefault(data.BestFloor, defaultData.BestFloor))
+
+	player:SetAttribute("SinShards", numberOrDefault(data.SinShards, defaultData.SinShards))
+
+	player:SetAttribute("SinSlot1", stringOrDefault(data.SinSlot1, ""))
+	player:SetAttribute("SinSlot2", stringOrDefault(data.SinSlot2, ""))
+	player:SetAttribute("SinSlot3", stringOrDefault(data.SinSlot3, ""))
+
+	player:SetAttribute("GraphicsQuality", stringOrDefault(data.GraphicsQuality, defaultData.GraphicsQuality))
 end
 
-function PlayerDataService:Load(player)
-	local loadedData = nil
+local function collectData(player)
+	local auracoins = player:GetAttribute("Auracoins") or player:GetAttribute("Money") or 0
 
-	local success, result = pcall(function()
-		return dataStore:GetAsync(getKey(player))
+	return {
+		Auracoins = auracoins,
+		Money = auracoins,
+
+		BestStuds = player:GetAttribute("BestStuds") or 0,
+		BestFloor = player:GetAttribute("BestFloor") or 0,
+
+		SinShards = player:GetAttribute("SinShards") or 0,
+
+		SinSlot1 = player:GetAttribute("SinSlot1") or "",
+		SinSlot2 = player:GetAttribute("SinSlot2") or "",
+		SinSlot3 = player:GetAttribute("SinSlot3") or "",
+
+		GraphicsQuality = player:GetAttribute("GraphicsQuality") or GameConfig.DefaultQuality or "Medium",
+	}
+end
+
+function PlayerDataService:LoadPlayer(player)
+	local key = makeKey(player)
+
+	local success, data = pcall(function()
+		return dataStore:GetAsync(key)
 	end)
 
 	if success then
-		loadedData = result
+		applyData(player, data)
+		loaded[player] = true
+		print("[PlayerDataService] Loaded data for", player.Name)
 	else
-		warn("[PlayerDataService] DataStore load failed for", player.Name, result)
+		warn("[PlayerDataService] Failed to load data for", player.Name, data)
+		applyData(player, nil)
+		loaded[player] = true
 	end
-
-	local profile = normalizeProfile(loadedData)
-	self.Profiles[player] = profile
-	syncAttributes(player, profile)
-
-	return profile
 end
 
-function PlayerDataService:Save(player)
-	local profile = self.Profiles[player]
-	if not profile then
+function PlayerDataService:SavePlayer(player)
+	if not player or not player.Parent then
 		return
 	end
 
-	local dataToSave = {
-		Money = profile.Money,
-		BestStuds = profile.BestStuds,
-		MoneyMultiplier = profile.MoneyMultiplier,
-		GraphicsQuality = profile.GraphicsQuality,
-	}
+	if saving[player] then
+		return
+	end
 
-	local success, result = pcall(function()
-		dataStore:SetAsync(getKey(player), dataToSave)
+	saving[player] = true
+
+	local key = makeKey(player)
+	local data = collectData(player)
+
+	local success, err = pcall(function()
+		dataStore:SetAsync(key, data)
 	end)
 
-	if not success then
-		warn("[PlayerDataService] DataStore save failed for", player.Name, result)
-	end
-end
-
-function PlayerDataService:AddMoney(player, amount)
-	local profile = self.Profiles[player]
-	if not profile then
-		return
+	if success then
+		print("[PlayerDataService] Saved data for", player.Name)
+	else
+		warn("[PlayerDataService] Failed to save data for", player.Name, err)
 	end
 
-	amount = math.max(0, math.floor(amount))
-	profile.Money += amount
-	player:SetAttribute("Money", profile.Money)
-end
-
-function PlayerDataService:SetBestStuds(player, studs)
-	local profile = self.Profiles[player]
-	if not profile then
-		return
-	end
-
-	studs = math.max(0, math.floor(studs))
-
-	if studs > profile.BestStuds then
-		profile.BestStuds = studs
-		player:SetAttribute("BestStuds", profile.BestStuds)
-	end
-end
-
-function PlayerDataService:SetGraphicsQuality(player, quality)
-	local profile = self.Profiles[player]
-	if not profile then
-		return
-	end
-
-	if not GameConfig.QualitySettings[quality] then
-		return
-	end
-
-	profile.GraphicsQuality = quality
-	player:SetAttribute("GraphicsQuality", profile.GraphicsQuality)
+	saving[player] = nil
 end
 
 function PlayerDataService:Start()
 	Players.PlayerAdded:Connect(function(player)
-		self:Load(player)
+		self:LoadPlayer(player)
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
-		self:Save(player)
-		self.Profiles[player] = nil
+		self:SavePlayer(player)
+		loaded[player] = nil
+		saving[player] = nil
 	end)
 
 	for _, player in ipairs(Players:GetPlayers()) do
-		task.spawn(function()
-			self:Load(player)
-		end)
+		self:LoadPlayer(player)
 	end
+
+	task.spawn(function()
+		while true do
+			task.wait(60)
+
+			for _, player in ipairs(Players:GetPlayers()) do
+				self:SavePlayer(player)
+			end
+		end
+	end)
 
 	game:BindToClose(function()
 		for _, player in ipairs(Players:GetPlayers()) do
-			self:Save(player)
+			self:SavePlayer(player)
 		end
 	end)
+
+	print("[PlayerDataService] Started:", storeName)
 end
 
 return PlayerDataService
