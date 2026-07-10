@@ -114,6 +114,8 @@ GameConfig.FallDarkenTransparency = 0.25
 GameConfig.DefaultImpactMarksEnabled = true
 GameConfig.MaxImpactMarks = 40
 GameConfig.MaxPersistentCorpses = 8
+GameConfig.Insanity = GameConfig.Insanity or {}
+GameConfig.Insanity.CollapsePushSpeed = 110
 
 GameConfig.Stamina = {
 	Max = 100,
@@ -346,20 +348,35 @@ GameConfig.Push = {
 GameConfig.FallKillSystem = {
 	Enabled = true,
 
-	-- Le système ne s'active pas si tu es trop bas / début de run.
-	MinimumStudsBeforeFallKill = 15,
+	MinimumStudsBeforeFallKill = 5,
 
-	-- Seuil de chute pour activer le ragdoll.
-	MinFallDistanceToRagdoll = 22,
+	-- Pour éviter que le saut déclenche le ragdoll.
+	MinimumAirTime = 0.45,
+	MinFallDistanceToRagdoll = 24,
+	VelocityYToRagdoll = -32,
 
-	-- Si la vitesse verticale est plus basse que ça, ragdoll aussi.
-	VelocityYToRagdoll = -28,
+	-- Mort quand ragdoll touche le sol.
+	RagdollGroundKillDelay = 0.12,
 
-	-- Temps entre le ragdoll et la mort obligatoire.
-	DeathDelayAfterRagdoll = 1.1,
-
-	-- Si le joueur tombe beaucoup trop bas, mort directe.
-	AbsoluteDeathY = -80,
+	-- Sécurité hors-map.
+	AbsoluteDeathY = -160,
 }
+
+GameConfig.FallAccelerationEnabled = true
+GameConfig.FallAcceleration = 20
+GameConfig.MaxFallSpeed = -520
+
+GameConfig.CenterPullEnabled = true
+GameConfig.CenterPullSpeed = 10
+GameConfig.CenterPullTargetRadius = 10
+
+GameConfig.ImpactMarks = {
+	Enabled = true,
+	Size = 6,
+	Lifetime = 120,
+	Transparency = 0.08,
+	Color = Color3.fromRGB(145, 12, 18),
+}
+
 
 return GameConfig

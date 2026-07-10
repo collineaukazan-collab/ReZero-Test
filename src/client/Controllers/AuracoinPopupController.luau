@@ -8,7 +8,9 @@ local AuracoinPopupController = {}
 
 local localPlayer = Players.LocalPlayer
 
-local lastMilestone = nil
+local gui = nil
+local lastMilestone = 0
+local lastCurrency = nil
 local started = false
 
 local function getCurrencyName()
@@ -17,6 +19,26 @@ end
 
 local function getCurrencyColor()
 	return GameConfig.CurrencyColor or Color3.fromRGB(255, 221, 65)
+end
+
+local function formatInteger(value)
+	value = math.floor(tonumber(value) or 0)
+
+	local text = tostring(value)
+	local result = ""
+
+	while #text > 3 do
+		result = "," .. string.sub(text, -3) .. result
+		text = string.sub(text, 1, #text - 3)
+	end
+
+	return text .. result
+end
+
+local function getCurrencyValue()
+	return localPlayer:GetAttribute("Auracoins")
+		or localPlayer:GetAttribute("Money")
+		or 0
 end
 
 local function getGainPerTenStuds()
@@ -29,71 +51,111 @@ local function getGainPerTenStuds()
 
 	local sinMultiplier = localPlayer:GetAttribute("SinAuracoinsMultiplier") or 1
 
-	return math.floor(10 * moneyPerStud * baseMultiplier * sinMultiplier)
+	return math.max(1, math.floor(10 * moneyPerStud * baseMultiplier * sinMultiplier))
 end
 
-local function getAdornee()
-	local character = localPlayer.Character
+local function createGui()
+	local playerGui = localPlayer:WaitForChild("PlayerGui")
 
-	if not character then
-		return nil
+	local old = playerGui:FindFirstChild("AuracoinPopupGui")
+	if old then
+		old:Destroy()
 	end
 
-	return character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+	gui = Instance.new("ScreenGui")
+	gui.Name = "AuracoinPopupGui"
+	gui.IgnoreGuiInset = true
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 9000
+	gui.Parent = playerGui
 end
 
 local function showPopup(amount)
-	local adornee = getAdornee()
-
-	if not adornee then
+	if not gui then
 		return
 	end
 
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "AuracoinGainPopup"
-	billboard.Adornee = adornee
-	billboard.AlwaysOnTop = true
-	billboard.Size = UDim2.fromOffset(180, 44)
-	billboard.StudsOffset = Vector3.new(2.3, 1.7, 0)
-	billboard.Parent = adornee
+	amount = math.floor(tonumber(amount) or 0)
+
+	if amount <= 0 then
+		return
+	end
+
+	local x = 0.5 + math.random(-22, 22) / 100
+	local y = 0.5 + math.random(-14, 14) / 100
 
 	local label = Instance.new("TextLabel")
-	label.Name = "Text"
+	label.Name = "GainPopup"
+	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.Position = UDim2.fromScale(x, y)
+	label.Size = UDim2.fromOffset(280, 46)
 	label.BackgroundTransparency = 1
-	label.Size = UDim2.fromScale(1, 1)
-	label.Text = "+" .. tostring(amount) .. " " .. getCurrencyName()
+	label.Text = "+" .. formatInteger(amount) .. " " .. getCurrencyName()
 	label.TextColor3 = getCurrencyColor()
-	label.TextStrokeTransparency = 0.2
 	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-	label.TextSize = 20
+	label.TextStrokeTransparency = 0.1
+	label.TextSize = 25
 	label.Font = Enum.Font.GothamBlack
-	label.Parent = billboard
-
-	TweenService:Create(
-		billboard,
-		TweenInfo.new(0.85, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-		{ StudsOffset = Vector3.new(2.3, 3.2, 0) }
-	):Play()
+	label.Parent = gui
 
 	TweenService:Create(
 		label,
-		TweenInfo.new(0.85, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 		{
+			Position = UDim2.fromScale(x + math.random(-4, 4) / 100, y - 0.08),
 			TextTransparency = 1,
 			TextStrokeTransparency = 1,
 		}
 	):Play()
 
-	task.delay(0.9, function()
-		if billboard then
-			billboard:Destroy()
+	task.delay(0.95, function()
+		if label then
+			label:Destroy()
 		end
 	end)
 end
 
-local function resetMilestone()
+local function resetValues()
 	local studs = math.floor(localPlayer:GetAttribute("CurrentStuds") or 0)
+
 	lastMilestone = math.floor(studs / 10)
+	lastCurrency = getCurrencyValue()
+end
+
+local function onStudsChanged()
+	local studs = math.floor(localPlayer:GetAttribute("CurrentStuds") or 0)
+
+	if studs < 10 then
+		lastMilestone = 0
+		return
+	end
+
+	local milestone = math.floor(studs / 10)
+
+	if milestone > lastMilestone then
+		local gainedMilestones = milestone - lastMilestone
+		lastMilestone = milestone
+
+		showPopup(getGainPerTenStuds() * gainedMilestones)
+	elseif milestone < lastMilestone then
+		lastMilestone = milestone
+	end
+end
+
+local function onCurrencyChanged()
+	local current = getCurrencyValue()
+
+	if lastCurrency == nil then
+		lastCurrency = current
+		return
+	end
+
+	local delta = current - lastCurrency
+	lastCurrency = current
+
+	if delta > 0 then
+		showPopup(delta)
+	end
 end
 
 function AuracoinPopupController:Start()
@@ -103,41 +165,17 @@ function AuracoinPopupController:Start()
 
 	started = true
 
-	resetMilestone()
+	createGui()
+	resetValues()
 
 	localPlayer.CharacterAdded:Connect(function()
 		task.wait(0.4)
-		resetMilestone()
+		resetValues()
 	end)
 
-	localPlayer:GetAttributeChangedSignal("CurrentStuds"):Connect(function()
-		local studs = math.floor(localPlayer:GetAttribute("CurrentStuds") or 0)
-
-		if studs < 10 then
-			lastMilestone = 0
-			return
-		end
-
-		local milestone = math.floor(studs / 10)
-
-		if lastMilestone == nil then
-			lastMilestone = milestone
-			return
-		end
-
-		if milestone > lastMilestone then
-			local gainedMilestones = milestone - lastMilestone
-			lastMilestone = milestone
-
-			local amount = getGainPerTenStuds() * gainedMilestones
-
-			if amount > 0 then
-				showPopup(amount)
-			end
-		elseif milestone < lastMilestone then
-			lastMilestone = milestone
-		end
-	end)
+	localPlayer:GetAttributeChangedSignal("CurrentStuds"):Connect(onStudsChanged)
+	localPlayer:GetAttributeChangedSignal("Auracoins"):Connect(onCurrencyChanged)
+	localPlayer:GetAttributeChangedSignal("Money"):Connect(onCurrencyChanged)
 
 	print("[AuracoinPopupController] Started.")
 end

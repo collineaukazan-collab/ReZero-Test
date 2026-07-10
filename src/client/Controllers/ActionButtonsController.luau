@@ -16,15 +16,21 @@ local pushButton = nil
 local setRestingRemote = nil
 local pushRemote = nil
 
-local normalPosition = UDim2.new(0.5, -214, 1, -76)
-local hiddenPosition = UDim2.new(0.5, -214, 1, 50)
+local normalPosition = UDim2.new(0.5, -270, 1, -84)
+local hiddenPosition = UDim2.new(0.5, -270, 1, 60)
 
 local restToggled = false
-local cHeld = false
 local pushCooldown = false
 
 local THEME_BG = Color3.fromRGB(8, 8, 12)
 local THEME_WHITE = Color3.fromRGB(255, 255, 255)
+local THEME_PURPLE = Color3.fromRGB(45, 28, 70)
+
+local function makeCorner(parent, radius)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius)
+	corner.Parent = parent
+end
 
 local function makeStroke(parent)
 	local stroke = Instance.new("UIStroke")
@@ -34,21 +40,21 @@ local function makeStroke(parent)
 	stroke.Parent = parent
 end
 
-local function createButton(parent, name, text, index)
+local function createButton(parent, name, text)
 	local button = Instance.new("TextButton")
 	button.Name = name
-	button.Size = UDim2.fromOffset(96, 42)
-	button.Position = UDim2.fromOffset((index - 1) * 108, 0)
+	button.Size = UDim2.fromOffset(126, 50)
 	button.BackgroundColor3 = THEME_BG
-	button.BackgroundTransparency = 0.05
+	button.BackgroundTransparency = 0.04
 	button.BorderSizePixel = 0
 	button.Text = text
 	button.TextColor3 = THEME_WHITE
-	button.TextSize = 15
+	button.TextSize = 16
 	button.Font = Enum.Font.GothamBlack
 	button.AutoButtonColor = true
 	button.Parent = parent
 
+	makeCorner(button, 10)
 	makeStroke(button)
 
 	return button
@@ -79,11 +85,11 @@ local function refreshButtons()
 	local resting = localPlayer:GetAttribute("IsResting") == true
 
 	if runButton then
-		runButton.BackgroundColor3 = runToggled and Color3.fromRGB(40, 28, 70) or THEME_BG
+		runButton.BackgroundColor3 = runToggled and THEME_PURPLE or THEME_BG
 	end
 
 	if restButton then
-		restButton.BackgroundColor3 = resting and Color3.fromRGB(40, 28, 70) or THEME_BG
+		restButton.BackgroundColor3 = resting and THEME_PURPLE or THEME_BG
 	end
 end
 
@@ -111,9 +117,7 @@ local function toggleRest()
 end
 
 local function setHoldRest(value)
-	cHeld = value == true
-
-	if cHeld then
+	if value then
 		restToggled = false
 		localPlayer:SetAttribute("RunToggled", false)
 		setResting(true)
@@ -179,14 +183,21 @@ function ActionButtonsController:Start()
 	mainFrame = Instance.new("Frame")
 	mainFrame.Name = "ActionButtonsFrame"
 	mainFrame.Position = normalPosition
-	mainFrame.Size = UDim2.fromOffset(428, 44)
+	mainFrame.Size = UDim2.fromOffset(540, 52)
 	mainFrame.BackgroundTransparency = 1
 	mainFrame.Parent = gui
 
-	restButton = createButton(mainFrame, "RestButton", "REST", 1)
-	runButton = createButton(mainFrame, "RunButton", "RUN", 2)
-	auraButton = createButton(mainFrame, "AuraButton", "AURA", 3)
-	pushButton = createButton(mainFrame, "PushButton", "PUSH", 4)
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.Padding = UDim.new(0, 12)
+	layout.Parent = mainFrame
+
+	restButton = createButton(mainFrame, "RestButton", "REST")
+	runButton = createButton(mainFrame, "RunButton", "RUN")
+	auraButton = createButton(mainFrame, "AuraButton", "AURA")
+	pushButton = createButton(mainFrame, "PushButton", "PUSH")
 
 	restButton.Activated:Connect(toggleRest)
 	runButton.Activated:Connect(toggleRun)
@@ -201,10 +212,9 @@ function ActionButtonsController:Start()
 			return
 		end
 
-		if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
-			localPlayer:SetAttribute("RunToggled", true)
-			refreshButtons()
-		elseif input.KeyCode == Enum.KeyCode.C then
+		-- C = rest maintenu.
+		-- Shift n'est PAS géré ici pour éviter le toggle.
+		if input.KeyCode == Enum.KeyCode.C then
 			setHoldRest(true)
 		end
 	end)

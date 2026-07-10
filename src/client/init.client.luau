@@ -54,6 +54,7 @@ startController("DeathEffectsController", true)
 startController("DebugFlyController", true)
 startController("InsanityBarController", true)
 startController("InsanityEffectsController", true)
+startController("InsanityAudioController", true)
 startController("StaminaController", true)
 
 local MusicController = startController("MusicController", true)
